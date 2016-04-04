@@ -1,4 +1,4 @@
-# amicleanup
+# snapshotcleanup
 
 AWS Lambda function to cleanup EBS snapshots.
 

@@ -1,10 +1,10 @@
-# amicleanup
+# awsops
 
 AWS Operations via Lambda
 
 ## Description
 
-This project amis to automate common operational tasks for AWS accounts.
+This project aims to automate common operational tasks for AWS accounts.
 
 ## Usage
 
