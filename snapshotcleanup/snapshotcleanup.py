@@ -1,0 +1,69 @@
+#!/usr/bin/python
+
+from __future__ import print_function
+
+from datetime import datetime, timedelta, tzinfo
+import boto3
+from botocore.exceptions import ClientError
+
+ZERO = timedelta(0)
+
+class UTC(tzinfo):
+    """
+    Implements UTC timezone for datetime interaction
+    """
+    def utcoffset(self, dt):
+        return ZERO
+
+    def tzname(self, dt):
+        return "UTC"
+
+    def dst(self, dt):
+        return ZERO
+
+def get_snapshots(ec2, filters, retention):
+    """
+    Returns snapshots associated with a list of AMIs.
+    """
+    for snapshot in ec2.snapshots.filter(Filters=filters):
+        # If the retention is specified in a tag override the default
+        if snapshot.tags:
+            for tag in snapshot.tags:
+                if tag['Key'] == 'ops:retention':
+                    retention = int(tag['Value'])
+
+	utc = UTC()
+        if snapshot.start_time < (datetime.now(utc) - timedelta(days=retention)):
+            yield snapshot
+
+
+def lambda_handler(event, context):
+    """
+    Cleanup orphaned AMIs and EBS snapshots.
+    """
+
+    if not 'DryRun' in event:
+        event['DryRun'] = False
+
+    if not 'Filters' in event:
+        event['Filters'] = [{
+            'Name': 'tag-key',
+            'Values': [
+                'ops:retention'
+            ]
+        }]
+
+    if not 'Retention' in event:
+        event['Retention'] = 30
+
+    ec2 = boto3.resource('ec2')
+    snapshots = get_snapshots(ec2, filters=event['Filters'],
+                              retention=event['Retention'])
+
+    for snapshot in snapshots:
+        print('Deleting: %s' % snapshot)
+        try:
+            snapshot.delete(DryRun=event['DryRun'])
+        except ClientError as e:
+            if e.response['Error']['Code'] == 'DryRunOperation':
+                pass
