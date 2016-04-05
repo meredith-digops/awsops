@@ -23,7 +23,7 @@ class UTC(tzinfo):
 
 def get_snapshots(ec2, filters, retention):
     """
-    Returns snapshots associated with a list of AMIs.
+    Generator of snapshots that exceed retention policy.
     """
     for snapshot in ec2.snapshots.filter(Filters=filters):
         # If the retention is specified in a tag override the default
@@ -39,7 +39,7 @@ def get_snapshots(ec2, filters, retention):
 
 def lambda_handler(event, context):
     """
-    Cleanup orphaned AMIs and EBS snapshots.
+    Delete EBS snapshots that exceed retention policy.
     """
 
     if not 'DryRun' in event:
