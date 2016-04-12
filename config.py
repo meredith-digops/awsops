@@ -24,7 +24,7 @@ def get_config(context=None, bucket=None, key='awsops.json'):
 
     try:
         # Get the s3 object
-        config = boto3.client('s3').get_object(
+        config_json = boto3.client('s3').get_object(
             Bucket=bucket,
             Key=key
         )['Body']
@@ -32,7 +32,7 @@ def get_config(context=None, bucket=None, key='awsops.json'):
         # Let lambda exceptions serialize and exit
         # http://docs.aws.amazon.com/lambda/latest/dg/python-exceptions.html
         if context:
-            pass
+            raise
 
         if e.response['Error']['Code'] == 'NoSuchBucket':
             sys.exit('S3 bucket "%s" does not exist!' % bucket)
@@ -40,6 +40,13 @@ def get_config(context=None, bucket=None, key='awsops.json'):
         if e.response['Error']['Code'] == 'NoSuchKey':
             sys.exit('S3 key "%s" does not exist!' % key)
 
-    return json.loads(config.read().decode('utf-8'))
+    # Deserialize the json configuration
+    config = json.loads(config_json.read().decode('utf-8'))
+
+    # Add the bucket arn so it can be used by jinja2 templates
+    # This doesn't make sense to statically set in the configuration json
+    config['AWS_S3_ARN'] = 'arn:aws:s3:::%s/*' % bucket
+
+    return config
 
 # vim: tabstop=4 expandtab shiftwidth=4 softtabstop=4

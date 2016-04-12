@@ -81,7 +81,7 @@ lambda_client = boto3.client('lambda', region_name='us-east-1')
 with TemporaryFile() as f:
     with ZipFile(f, 'w') as z:
         z.write(function_file, os.path.basename(function_file))
-        #z.write('config.py', 'config.py')
+        z.write('config.py', 'config.py')
 
     f.seek(0)
 
