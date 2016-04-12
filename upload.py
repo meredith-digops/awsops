@@ -2,6 +2,7 @@
 
 from __future__ import print_function
 
+import os
 import os.path
 import sys
 from tempfile import TemporaryFile
@@ -9,6 +10,9 @@ from zipfile import ZipFile
 
 import boto3
 from botocore.exceptions import ClientError
+from jinja2 import Environment, FileSystemLoader
+
+from config import get_config
 
 assume_role_policy_document = """{
   "Version": "2012-10-17",
@@ -32,9 +36,15 @@ except IndexError:
 
 function_file = os.path.join(function_name, '%s.py' % function_name)
 lambda_name = 'awsops-%s' % function_name
+role_name = 'labmda-%s-role' % function_name
+
+# Render policy document with Jinja2 and configparser object
+jinja2_env = Environment(loader=FileSystemLoader('.'))
 policy_file = os.path.join(function_name, '%s.json' % function_name)
 policy_name = 'lambda-%s-policy' % function_name
-role_name = 'labmda-%s-role' % function_name
+policy_template = jinja2_env.get_template(policy_file)
+policy_document = policy_template.render(config=get_config())
+
 
 def already_exists(e):
     return 'already exist' in str(e)
@@ -50,19 +60,21 @@ except ClientError as e:
     if already_exists(e):
         role = iam.Role(role_name)
 
+print('Configured IAM role: %s' % role_name)
+
 try:
-    with open(policy_file) as f:
-        policy_document = f.read()
-        policy = iam.create_policy(
-            PolicyName=policy_name,
-            PolicyDocument=policy_document
-        )
+    policy = iam.create_policy(
+        PolicyName=policy_name,
+        PolicyDocument=policy_document
+    )
 except ClientError as e:
     if already_exists(e):
         policy = role.Policy(policy_name)
         policy.put(
             PolicyDocument=policy_document
         )
+
+print('Configured IAM policy: %s' % policy_name)
 
 lambda_client = boto3.client('lambda', region_name='us-east-1')
 
@@ -97,5 +109,7 @@ with TemporaryFile() as f:
                 FunctionName=lambda_name
             )
             create()
+
+    print('Configured lambda function: %s' % lambda_name)
 
 # vim: tabstop=4 expandtab shiftwidth=4 softtabstop=4
