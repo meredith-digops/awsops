@@ -36,7 +36,7 @@ except IndexError:
 
 function_file = os.path.join(function_name, '%s.py' % function_name)
 lambda_name = 'awsops-%s' % function_name
-role_name = 'labmda-%s-role' % function_name
+role_name = 'lambda-%s-role' % function_name
 
 # Render policy document with Jinja2 and configparser object
 jinja2_env = Environment(loader=FileSystemLoader('.'))
