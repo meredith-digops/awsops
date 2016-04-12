@@ -57,4 +57,4 @@ target/
 *.rpm
 
 # awsops configuration
-awsops.ini
+awsops.json

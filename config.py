@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-import configparser
+import json
 import sys
 
 import boto3
@@ -15,7 +15,7 @@ def get_account_id(context=None):
 
     return boto3.client('iam').get_user()['User']['Arn'].split(':')[4]
 
-def get_config(context=None, bucket=None, key='awsops.ini'):
+def get_config(context=None, bucket=None, key='awsops.json'):
     """
     Return the awsops configparser object for the current account.
     """
@@ -24,7 +24,7 @@ def get_config(context=None, bucket=None, key='awsops.ini'):
 
     try:
         # Get the s3 object
-        ini = boto3.client('s3').get_object(
+        config = boto3.client('s3').get_object(
             Bucket=bucket,
             Key=key
         )['Body']
@@ -40,9 +40,6 @@ def get_config(context=None, bucket=None, key='awsops.ini'):
         if e.response['Error']['Code'] == 'NoSuchKey':
             sys.exit('S3 key "%s" does not exist!' % key)
 
-    # Create and return configparser object from s3 object body
-    config = configparser.ConfigParser()
-    config.read_string(ini.read().decode('utf-8'), source=key)
-    return config
+    return json.loads(config.read().decode('utf-8'))
 
 # vim: tabstop=4 expandtab shiftwidth=4 softtabstop=4

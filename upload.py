@@ -43,7 +43,7 @@ jinja2_env = Environment(loader=FileSystemLoader('.'))
 policy_file = os.path.join(function_name, '%s.json' % function_name)
 policy_name = 'lambda-%s-policy' % function_name
 policy_template = jinja2_env.get_template(policy_file)
-policy_document = policy_template.render(config=get_config())
+policy_document = policy_template.render(**get_config())
 
 
 def already_exists(e):
@@ -81,6 +81,7 @@ lambda_client = boto3.client('lambda', region_name='us-east-1')
 with TemporaryFile() as f:
     with ZipFile(f, 'w') as z:
         z.write(function_file, os.path.basename(function_file))
+        #z.write('config.py', 'config.py')
 
     f.seek(0)
 
