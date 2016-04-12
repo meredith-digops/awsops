@@ -55,3 +55,6 @@ target/
 # Git Archives
 *.tar.gz
 *.rpm
+
+# awsops configuration
+awsops.ini
