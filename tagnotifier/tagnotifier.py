@@ -2,7 +2,9 @@
 
 from __future__ import print_function
 
+import re
 from datetime import datetime, timedelta, tzinfo
+
 import boto3
 from botocore.exceptions import ClientError
 
@@ -17,61 +19,42 @@ def lambda_handler(event, context):
     if not 'DryRun' in event:
         event['DryRun'] = False
 
-    if not 'EC2_Filters' in event:
-        event['EC2_Filters'] = []
+    if not 'AWS_EC2_TAGS' in event:
+        event['AWS_EC2_TAGS'] = []
 
         if 'AWS_EC2_TAGS' in config:
-            for tag in config['AWS_EC2_TAGS']:
-                event['EC2_Filters'].append({
-                    'Name': 'tag-key',
-                    'Values': [
-                        '!%s' % tag
-                    ]
-                })
+            event['AWS_EC2_TAGS'].extend(config['AWS_EC2_TAGS'])
 
-    if not 'AMI_Filters' in event:
-        event['AMI_Filters'] = [{
-            'Name': 'tag-key',
-            'Values': [
-                '!ops:retention',
-                '!ops:expiration'
-            ]
-        }]
+    if not 'AWS_AMI_TAGS' in event:
+        event['AWS_AMI_TAGS'] = []
 
         if 'AWS_AMI_TAGS' in config:
-            for tag in config['AWS_AMI_TAGS']:
-                event['AMI_Filters'].append({
-                    'Name': 'tag-key',
-                    'Values': [
-                        '!%s' % tag
-                    ]
-                })
+            event['AWS_AMI_TAGS'].extend(config['AWS_AMI_TAGS'])
 
-    if not 'SNAP_Filters' in event:
-        event['SNAP_Filters'] = [{
-            'Name': 'tag-key',
-            'Values': [
-                '!ops:retention',
-                '!ops:expiration'
-            ]
-        }]
+    if not 'AWS_SNAP_TAGS' in event:
+        event['AWS_SNAP_TAGS'] = []
 
         if 'AWS_SNAP_TAGS' in config:
-            for tag in config['AWS_SNAP_TAGS']:
-                event['SNAP_Filters'].append({
-                    'Name': 'tag-key',
-                    'Values': [
-                        '!%s' % tag
-                    ]
-                })
+            event['AWS_SNAP_TAGS'].extend(config['AWS_SNAP_TAGS'])
 
     ec2 = boto3.resource('ec2')
 
-    for instance in ec2.instances.filter(Filters=event['EC2_Filters']):
-        print(instance)
+    for instance in ec2.instances.all():
+        for key in event['AWS_EC2_TAGS']:
+            matches = (tag['Key'] == key for tag in instance.tags)
+            if not any(matches):
+                print('Tag %s not set on %s' % (key, instance))
 
-    for image in ec2.images.filter(Filters=event['AMI_Filters'], Owners=['self']):
-        print(image)
+    for image in ec2.images.filter(Owners=['self']):
+        for key in event['AWS_AMI_TAGS']:
+            if image.tags:
+                matches = (tag['Key'] == key for tag in image.tags)
+                if not any(matches):
+                    print('Tag %s not set on %s' % (key, image))
 
-    for snapshot in ec2.snapshots.filter(Filters=event['SNAP_Filters']):
-        print(snapshot)
+    for snapshot in ec2.snapshots.all():
+        for key in event['AWS_SNAP_TAGS']:
+            if snapshot.tags:
+                matches = (tag['Key'] == key for tag in snapshot.tags)
+                if not any(matches):
+                    print('Tag %s not set on %s' % (key, snapshot))
