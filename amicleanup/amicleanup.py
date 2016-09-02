@@ -9,12 +9,19 @@ from botocore.exceptions import ClientError
 
 def get_images_in_use(ec2):
     """
-    Returns a list of image IDs in use by any EC2 instance.
+    Returns a list of image IDs in use by any EC2 instance or launch
+    configuration.
     """
     amis = set()
 
     for instance in ec2.instances.all():
         amis.add(instance.image_id)
+
+    autoscaling = boto3.client('autoscaling')
+    lcs = autoscaling.describe_launch_configurations()['LaunchConfigurations']
+
+    for lc in lcs:
+        amis.add(lc['ImageId'])
 
     return amis
 
