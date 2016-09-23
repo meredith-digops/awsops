@@ -5,6 +5,7 @@
       "Sid": "",
       "Effect": "Allow",
       "Action": [
+        "autoscaling:DescribeLaunchConfigurations",
         "ec2:DeleteSnapshot",
         "ec2:DeregisterImage",
         "ec2:DescribeImageAttribute",
