@@ -64,7 +64,7 @@ except ClientError as e:
             PolicyDocument=policy_document
         )
 
-lambda_client = boto3.client('lambda', region_name='us-east-1')
+lambda_client = boto3.client('lambda')
 
 with TemporaryFile() as f:
     with ZipFile(f, 'w') as z:
