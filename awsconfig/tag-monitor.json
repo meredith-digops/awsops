@@ -2,19 +2,73 @@
   "AWSTemplateFormatVersion": "2010-09-09",
   "Description": "Enable AWS Config to monitor for tag compliance",
   "Parameters": {
+    "Tag1Name": {
+      "Type": "String",
+      "Default": "",
+      "Description": "Checks for the presence of this tag if set."
+    },
+    "Tag2Name": {
+      "Type": "String",
+      "Default": "",
+      "Description": "Checks for the presence of this tag if set."
+    },
+    "Tag3Name": {
+      "Type": "String",
+      "Default": "",
+      "Description": "Checks for the presence of this tag if set."
+    },
+    "Tag4Name": {
+      "Type": "String",
+      "Default": "",
+      "Description": "Checks for the presence of this tag if set."
+    },
+    "Tag5Name": {
+      "Type": "String",
+      "Default": "",
+      "Description": "Checks for the presence of this tag if set."
+    },
+    "Tag6Name": {
+      "Type": "String",
+      "Default": "",
+      "Description": "Checks for the presence of this tag if set."
+    },
+    "MonitorInstances": {
+      "Type": "String",
+      "Default": "y",
+      "Description": "If 'y' will setup config rule to monitor EC2 instance tags"
+    },
+    "MonitorVolumes": {
+      "Type": "String",
+      "Default": "y",
+      "Description": "If 'y' will setup Config rule to monitor EC2 volume tags"
+    }
+  },
+  "Conditions": {
+    "HasTag1": {"Fn::Not": [{"Fn::Equals": ["", {"Ref": "Tag1Name"}]}]},
+    "HasTag2": {"Fn::Not": [{"Fn::Equals": ["", {"Ref": "Tag2Name"}]}]},
+    "HasTag3": {"Fn::Not": [{"Fn::Equals": ["", {"Ref": "Tag3Name"}]}]},
+    "HasTag4": {"Fn::Not": [{"Fn::Equals": ["", {"Ref": "Tag4Name"}]}]},
+    "HasTag5": {"Fn::Not": [{"Fn::Equals": ["", {"Ref": "Tag5Name"}]}]},
+    "HasTag6": {"Fn::Not": [{"Fn::Equals": ["", {"Ref": "Tag6Name"}]}]},
+    "DoMonitorInstances": {"Fn::Equals": ["y", {"Ref": "MonitorInstances"}]},
+    "DoMonitorVolumes": {"Fn::Equals": ["y", {"Ref": "MonitorVolumes"}]},
   },
   "Resources": {
     "cfgRuleVolumeTags": {
       "Type": "AWS::Config::ConfigRule",
       "Properties": {
         "InputParameters": {
-          "tag1Key": "CostCenter",
-          "tag2Key": "PoC"
+          "tag1Key": {"Fn::If": ["HasTag1", {"Ref": "Tag1Name"}, {"Ref": "AWS::NoValue"}]},
+          "tag2Key": {"Fn::If": ["HasTag2", {"Ref": "Tag2Name"}, {"Ref": "AWS::NoValue"}]},
+          "tag3Key": {"Fn::If": ["HasTag3", {"Ref": "Tag3Name"}, {"Ref": "AWS::NoValue"}]},
+          "tag4Key": {"Fn::If": ["HasTag4", {"Ref": "Tag4Name"}, {"Ref": "AWS::NoValue"}]},
+          "tag5Key": {"Fn::If": ["HasTag5", {"Ref": "Tag5Name"}, {"Ref": "AWS::NoValue"}]},
+          "tag6Key": {"Fn::If": ["HasTag6", {"Ref": "Tag6Name"}, {"Ref": "AWS::NoValue"}]}
         },
         "Scope": {
           "ComplianceResourceTypes": [
-            "AWS::EC2::Instance",
-            "AWS::EC2::Volume"
+            {"Fn::If": ["DoMonitorInstances", "AWS::EC2::Instance", {"Ref": "AWS::NoValue"}]},
+            {"Fn::If": ["DoMonitorVolumes", "AWS::EC2::Volume", {"Ref": "AWS::NoValue"}]}
           ]
         },
         "Source": {
