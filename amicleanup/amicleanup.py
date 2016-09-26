@@ -59,7 +59,7 @@ def get_orphaned_images(ec2, filters, retention):
 
     for image in ec2.images.filter(Filters=filters, Owners=['self']):
         if image.image_id not in in_use:
-            # Moto doesn't currenlty provide a creation date.  Setting a
+            # Boto3 doesn't currenlty provide a creation date.  Setting a
             # default value here just for testing purposes.
             if image.creation_date is None:
                 creation_date = datetime.fromtimestamp(0)
