@@ -17,7 +17,7 @@ Usage
 aws cloudformation create-stack \
     --stack-name AWSConfigStack \
     --capabilities CAPABILITY_IAM \
-    --template-body file://./cfn.json
+    --template-body file://./init.json
 ```
 
 **Updating AWS Config Stack**
@@ -26,7 +26,7 @@ aws cloudformation create-stack \
 aws cloudformation update-stack \
     --stack-name AWSConfigStack \
     --capabilities CAPABILITY_IAM \
-    --template-body file://./cfn.json
+    --template-body file://./init.json
 ```
 
 **Usage Notes**
