@@ -8,8 +8,8 @@ Currently, the service cannot support a large number of resource types so the
 functionality of this code is a bit limited. See the [references](#references)
 section for details on what is supported and what isn't.
 
-Usage
------
+Usage (Initial Setup)
+---------------------
 
 **Initial Setup**
 
@@ -36,6 +36,13 @@ aws cloudformation update-stack \
 - The `CAPABILITY_IAM` capability is required as this template addresses the
 creation of the role required for the AWS Config service to interact with the
 other various resources.
+
+Usage (Tag Monitoring)
+----------------------
+
+Monitoring for the presence of tags can be established by editing
+[tag-monitor.json](tag-monitor.json) and creating/updating that CloudFormation
+stack.
 
 ## References
 - [[stelligent.com] Security Integration Testing (Part 1): Resource Monitoring with AWS Config Rules](https://stelligent.com/2016/04/19/security-integration-testing-part-1/)
