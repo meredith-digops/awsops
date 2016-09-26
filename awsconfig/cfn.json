@@ -8,6 +8,18 @@
       "Description": "Unique topic name for AWS Config changes",
       "MinLength": 1,
       "MaxLength": 256
+    },
+    "DELIVERYFREQUENCY": {
+      "Type": "String",
+      "Default": "Twelve_Hours",
+      "Description": "The frequency with which AWS Config delivers configuration snapshots.",
+      "AllowedValues": [
+        "One_Hour",
+        "Three_Hours",
+        "Six_Hours",
+        "Twelve_Hours",
+        "TwentyFour_Hours"
+      ]
     }
   },
   "Resources": {
@@ -138,12 +150,26 @@
           ]
         }
       }
+    },
+    "DeliveryChannel": {
+      "Type": "AWS::Config::DeliveryChannel",
+      "Properties": {
+        "ConfigSnapshotDeliveryProperties": {
+          "DeliveryFrequency": {"Ref": "DELIVERYFREQUENCY"}
+        },
+        "S3BucketName": {"Ref": "s3ConfigBucket"},
+        "SnsTopicARN": {"Ref": "snsConfigTopic"}
+      }
     }
   },
   "Outputs": {
     "s3ConfigBucketName": {
       "Value": {"Ref": "s3ConfigBucket"},
       "Description": "Name of S3 bucket that AWS Config snapshots will be dumped into"
+    },
+    "cfnStackName": {
+      "Value": {"Ref": "AWS::StackName"},
+      "Description": "AWS CloudFormation stack name"
     }
   }
 }
