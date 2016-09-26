@@ -1,0 +1,121 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "Basic AWS Config setup",
+  "Parameters": {
+    "TOPICNAME": {
+      "Type": "String",
+      "Default": "my-config-topic-1474749021",
+      "Description": "Unique topic name for AWS Config changes",
+      "MinLength": 1,
+      "MaxLength": 256
+    }
+  },
+  "Resources": {
+    "s3ConfigBucket": {
+      "Type": "AWS::S3::Bucket",
+      "DeletionPolicy": "Retain",
+      "Properties": {
+        "AccessControl": "BucketOwnerFullControl"
+      }
+    },
+    "snsConfigTopic": {
+      "Type": "AWS::SNS::Topic",
+      "Properties": {
+        "DisplayName": {"Ref": "TOPICNAME"},
+        "TopicName": {"Ref": "TOPICNAME"}
+      }
+    },
+    "iamConfigRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Statement": [
+            {
+              "Action": [
+                "sts:AssumeRole"
+              ],
+              "Effect": "Allow",
+              "Principal": {
+                "Service": [
+                  "config.amazonaws.com"
+                ]
+              }
+            }
+          ],
+          "Version": "2012-10-17"
+        },
+        "Path": "/",
+        "Policies": [
+          {
+            "PolicyDocument": {
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Action": "sns:Publish",
+                  "Resource": {"Ref": "snsConfigTopic"}
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "s3:PutObject"
+                  ],
+                  "Resource": [
+                    {
+                      "Fn::Join": [
+                        "",
+                        [
+                          "arn:aws:s3:::",
+                          {"Ref": "s3ConfigBucket"},
+                          "/AWSLogs/",
+                          {"Ref": "AWS::AccountId"},
+                          "/*"
+                        ]
+                      ]
+                    }
+                  ],
+                  "Condition": {
+                    "StringLike": {
+                      "s3:x-amz-acl": "bucket-owner-full-control"
+                    }
+                  }
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "s3:GetBucketAcl"
+                  ],
+                  "Resource": {
+                    "Fn::Join": [
+                      "",
+                      [
+                        "arn:aws:s3:::",
+                        {"Ref": "s3ConfigBucket"}
+                      ]
+                    ]
+                  }
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "config:Put*",
+                    "ec2:Describe*",
+                    "iam:List*",
+                    "iam:Get*"
+                  ],
+                  "Resource": "*"
+                }
+              ]
+            },
+            "PolicyName": "root"
+          }
+        ]
+      }
+    }
+  },
+  "Outputs": {
+    "s3ConfigBucketName": {
+      "Value": {"Ref": "s3ConfigBucket"},
+      "Description": "Name of S3 bucket that AWS Config snapshots will be dumped into"
+    }
+  }
+}
