@@ -6,7 +6,12 @@ from datetime import datetime, timedelta, tzinfo
 import boto3
 from botocore.exceptions import ClientError
 
+
+DEFAULT_RETENTION_DAYS = None
+"""If None, no default retention is applied"""
+
 ZERO = timedelta(0)
+
 
 class UTC(tzinfo):
     """
@@ -21,6 +26,7 @@ class UTC(tzinfo):
     def dst(self, dt):
         return ZERO
 
+
 def get_snapshots(ec2, filters, retention):
     """
     Generator of snapshots that exceed retention policy.
@@ -33,7 +39,8 @@ def get_snapshots(ec2, filters, retention):
                     retention = int(tag['Value'])
 
 	utc = UTC()
-        if snapshot.start_time < (datetime.now(utc) - timedelta(days=retention)):
+        if retention and
+                snapshot.start_time < (datetime.now(utc) - timedelta(days=retention)):
             yield snapshot
 
 
@@ -53,8 +60,10 @@ def lambda_handler(event, context):
             ]
         }]
 
+    # Set the default retention period if none was provided to the lambda
+    # invocation
     if not 'Retention' in event:
-        event['Retention'] = 30
+        event['Retention'] = DEFAULT_RETENTION_DAYS
 
     ec2 = boto3.resource('ec2')
     snapshots = get_snapshots(ec2, filters=event['Filters'],

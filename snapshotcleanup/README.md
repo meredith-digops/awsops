@@ -55,7 +55,7 @@ See [boto3 EC2 service resources](http://boto3.readthedocs.org/en/latest/referen
 
 ### Retention
 
-Snapshot retention is looked up via the `ops:retention` tag if available.  Otherwise the retention is configurable at runtime via the `Retention` property.  It defaults to 30 (days):
+Snapshot retention is looked up via the `ops:retention` tag if available.  Otherwise the retention is configurable at runtime via the `Retention` property.  It defaults to `None` which means only snapshots with the `ops:retention` tag will be explicitly affected:
 
 ```json
 {

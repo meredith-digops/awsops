@@ -22,8 +22,8 @@ from datetime import timedelta
 from botocore.exceptions import ClientError
 
 
-DEFAULT_RETENTION_DAYS = 30
-"""Define number of days to retain a stopped instance by default"""
+DEFAULT_RETENTION_DAYS = None
+"""Define number of days to retain a stopped instance by default, if None is unused"""
 
 RETENTION_TAG_KEY = 'ops:retention'
 """Define tag that can explicitly set retention days on per-instance basis"""
@@ -31,7 +31,7 @@ RETENTION_TAG_KEY = 'ops:retention'
 log = logging.getLogger(__name__)
 
 
-def get_stale_instances(ec2, filters, retention_days=DEFAULT_RETENTION_DAYS):
+def get_stale_instances(ec2, filters, retention_days):
     """
     Find EC2 instance IDs that have been stopped long enough we want to remove
     :param ec2: boto3 ec2 resource
@@ -101,7 +101,8 @@ def get_stale_instances(ec2, filters, retention_days=DEFAULT_RETENTION_DAYS):
 
         # If the instance was stopped for longer than the retention period is,
         # report this instance id as stale
-        if stopped_at <= (now - timedelta(days=instance_retention)):
+        if instance_retention and
+                stopped_at <= (now - timedelta(days=instance_retention)):
             stale_instances.append(instance.id)
 
     return stale_instances
