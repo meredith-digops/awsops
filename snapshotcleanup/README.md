@@ -11,6 +11,7 @@ The script depends on [boto3](http://boto3.readthedocs.org/en/latest/).  It is p
 Set your AWS token via environment variables:
 
 ```bash
+$ export AWS_DEFAULT_REGION=<region>
 $ export AWS_ACCESS_KEY_ID=<XXXXXXXXXXXXXXXX>
 $ export AWS_SECRET_ACCESS_KEY=<XXXXXXXXXXXXXXXX>
 ```
