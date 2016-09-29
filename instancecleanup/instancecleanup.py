@@ -121,14 +121,6 @@ def lambda_handler(event, context):
         # If no filter is specified, at least make an empty list
         event['Filters'] = []
 
-    # Ensure we're only checking stopped instances
-    event['Filters'].append({
-        'Name': 'instance-state-name',
-        'Values': [
-            'stopped',
-        ]
-    })
-
     if 'Retention' not in event:
         event['Retention'] = DEFAULT_RETENTION_DAYS
 
