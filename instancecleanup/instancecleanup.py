@@ -169,6 +169,11 @@ def lambda_handler(event, context):
         except ClientError as e:
             if e.response['Error']['Code'] == 'DryRunOperation':
                 pass
+            elif e.response['Error']['Code'] == 'OperationNotPermitted':
+                if 'disableApiTermination' in e.response['Error']['Message']:
+                    # Terminate protection is enabled, ignore
+                    log.debug("{id} has termination protection enabled, ignoring".format(
+                        id=instance_id))
 
 
 if __name__ == '__main__':
