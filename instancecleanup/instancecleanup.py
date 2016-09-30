@@ -33,7 +33,8 @@ log = logging.getLogger(__name__)
 
 def get_stale_instances(ec2, filters, retention_days):
     """
-    Find EC2 instance IDs that have been stopped long enough we want to remove
+    Find EC2 instance IDs that have been created long enough ago we want to remove
+
     :param ec2: boto3 ec2 resource
     :param filters: List of filters
     :type filters: list
@@ -42,67 +43,36 @@ def get_stale_instances(ec2, filters, retention_days):
     :return: List of instance IDs
     :rtype: list
     """
-    # Define what stop actions we should consider okay to terminate an instance
-    # from.
-    allowed_stop_reasons = [
-        'User initiated'
-    ]
-
-    # Find all stopped instances matching our filter(s)
-    stopped_instances = [i for i in ec2.instances.filter(Filters=filters)]
+    # Find all applicable instances matching our filter(s)
+    candidate_instances = [i for i in ec2.instances.filter(Filters=filters)]
     log.info("Found {c} instances matching filter".format(
-        c=len(stopped_instances)
+        c=len(candidate_instances)
     ))
     log.info("Filters: {f}".format(
         f=filters
     ))
 
-    # Prepare a regex to find the reason & datetime of the stop action
-    stoptime_regex = re.compile(r'^(.*)\s+\(([0-9]{4}-[0-9]{2}-[0-9]{2}\s+[0-9]{2}:[0-9]{2}:[0-9]{2}\s+[^\s]+)\s*\)\s*$')
-
-    # Define when "now" is to determine relative time since instance stoppage
-    now = datetime.now()
-
     # Define a list of instance ids that will be returned if they are truly
     # determined to be stale
     stale_instances = []
 
-    # Loop through the stopped instances to see which ones we can assert are
-    # stopped and candidates for termination
-    for instance in stopped_instances:
-        regex_search = stoptime_regex.search(
-            instance.meta.data['StateTransitionReason'])
-
-        if not regex_search:
-            # No matches found, no way for us to determine the stop time and
-            # whether or not this instance is subject to cleanup
-            continue
-
-        stopped_reason = regex_search.group(1)
-        stopped_at = datetime.strptime(regex_search.group(2), "%Y-%m-%d %H:%M:%S %Z")
-
-        # Ensure the instance was stopped for what we consider a reasonable
-        # cause
-        if stopped_reason not in allowed_stop_reasons:
-            log.warning(
-                "Instance {id} stopped for '{reason}', not terminating".format(
-                    id=instance.id,
-                    reason=stopped_reason
-                ))
-            continue
-
+    # Loop through the candidate instances to see which ones we can assert are
+    # candidates for termination
+    for instance in candidate_instances:
         # Determine the retention days or use the default provided to this
         # function call
         instance_retention = retention_days
         if instance.tags:
+            # TODO: The following will raise an exception if no tags present
             for tag in instance.tags:
                 if tag['Key'] == RETENTION_TAG_KEY:
                     instance_retention = int(tag['Value'])
 
-        # If the instance was stopped for longer than the retention period is,
-        # report this instance id as stale
-        if instance_retention and
-                stopped_at <= (now - timedelta(days=instance_retention)):
+        # If the instance was started longer ago than the retention period is,
+        # report this instance id as stale for potential termination
+        now = datetime.now(instance.meta.data['LaunchTime'].tzinfo)
+        if instance_retention and \
+                instance.meta.data['LaunchTime'] <= (now - timedelta(days=instance_retention)):
             stale_instances.append(instance.id)
 
     return stale_instances
