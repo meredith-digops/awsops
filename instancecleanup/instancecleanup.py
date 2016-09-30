@@ -73,7 +73,17 @@ def get_stale_instances(ec2, filters, retention_days):
         now = datetime.now(instance.meta.data['LaunchTime'].tzinfo)
         if instance_retention and \
                 instance.meta.data['LaunchTime'] <= (now - timedelta(days=instance_retention)):
-            stale_instances.append(instance.id)
+
+            # This instance might be considered stale, but first check if it
+            # has termination protection enabled
+            has_protection = ec2.meta.client.describe_instance_attribute(
+                InstanceId=instance.id,
+                Attribute='disableApiTermination')['DisableApiTermination']['Value']
+
+            if not has_protection:
+                # Instances are only stale if they don't have termination
+                # protection enabled
+                stale_instances.append(instance.id)
 
     return stale_instances
 
@@ -131,11 +141,6 @@ def lambda_handler(event, context):
         except ClientError as e:
             if e.response['Error']['Code'] == 'DryRunOperation':
                 pass
-            elif e.response['Error']['Code'] == 'OperationNotPermitted':
-                if 'disableApiTermination' in e.response['Error']['Message']:
-                    # Terminate protection is enabled, ignore
-                    log.debug("{id} has termination protection enabled, ignoring".format(
-                        id=instance_id))
 
 
 if __name__ == '__main__':
