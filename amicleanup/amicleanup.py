@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 
 from __future__ import print_function
 
@@ -6,6 +6,8 @@ from datetime import datetime, timedelta
 import boto3
 from botocore.exceptions import ClientError
 
+DEFAULT_RETENTION_DAYS = None
+"""If None, no default retention is applied"""
 
 def get_images_in_use(ec2):
     """
@@ -59,7 +61,7 @@ def get_orphaned_images(ec2, filters, retention):
 
     for image in ec2.images.filter(Filters=filters, Owners=['self']):
         if image.image_id not in in_use:
-            # Moto doesn't currenlty provide a creation date.  Setting a
+            # Boto3 doesn't currenlty provide a creation date.  Setting a
             # default value here just for testing purposes.
             if image.creation_date is None:
                 creation_date = datetime.fromtimestamp(0)
@@ -73,7 +75,8 @@ def get_orphaned_images(ec2, filters, retention):
                     if tag['Key'] == 'ops:retention':
                         retention = int(tag['Value'])
 
-            if creation_date < (datetime.now() - timedelta(days=retention)):
+            if retention and
+                    creation_date < (datetime.now() - timedelta(days=retention)):
                 orphaned.append(image.image_id)
 
     return orphaned
@@ -95,8 +98,10 @@ def lambda_handler(event, context):
             ]
         }]
 
+    # Set the default retention period if none was provided to the lambda
+    # invocation
     if not 'Retention' in event:
-        event['Retention'] = 30
+        event['Retention'] = DEFAULT_RETENTION_DAYS
 
     ec2 = boto3.resource('ec2')
 
