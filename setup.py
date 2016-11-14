@@ -12,7 +12,13 @@ setup(
         'boto3',
     ],
     test_suite = 'test',
-    py_modules = ['awsops']
+    py_modules = ['awsops'],
+
+    extras_require = {
+        'dev': [
+            'terminaltables',
+        ],
+    }
 )
 
 # vim: tabstop=8 expandtab shiftwidth=4 softtabstop=4
