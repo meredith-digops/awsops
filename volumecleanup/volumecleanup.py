@@ -77,7 +77,42 @@ def lambda_handler(event, context):
     """
     Delete abandoned EBS snapshots that exceed reasonable retention
     """
-    raise NotImplementedError
+    # Set the default retention period if none was provided to the lambda
+    # invocation
+    if 'Retention' not in event:
+        event['Retention'] = DEFAULT_RETENTION_DAYS
+
+    if event['Retention'] is None:
+        # Don't delete anything
+        raise AttributeError("No Retention specified")
+
+    if 'DryRun' not in event:
+        event['DryRun'] = False
+
+    if 'Filters' not in event:
+        event['Filters'] = [{
+            'Name': 'tag-key',
+            'Values': [
+                'ops:retention'
+            ]
+        }]
+
+    since = datetime.now(UTC()) - timedelta(float(event['Retention']))
+    ec2 = boto3.resource('ec2')
+    old_volumes = get_abandoned_volumes(since,
+                                        ec2=ec2,
+                                        filters=event['Filters'])
+
+    for volume in old_volumes:
+        print("Deleting: {id}".format(
+            id=volume.id
+        ))
+
+        try:
+            volume.delete(DryRun=event['DryRun'])
+        except ClientError as e:
+            if e.response['Error']['Code'] == 'DryRunOperation':
+                pass
 
 
 if __name__ == '__main__':
