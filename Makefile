@@ -50,3 +50,8 @@ dev    : venv
 		--quiet \
 		-e . \
 		-e .[test]
+
+.PHONY : clean
+clean  : ##@Targets Removes build files & virtualenv
+clean  :
+	@rm -fr $(VENV_PATH)/

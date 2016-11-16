@@ -39,7 +39,7 @@ def get_snapshots(ec2, filters, retention):
                     retention = int(tag['Value'])
 
 	utc = UTC()
-        if retention and
+        if retention and \
                 snapshot.start_time < (datetime.now(utc) - timedelta(days=retention)):
             yield snapshot
 
