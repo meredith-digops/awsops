@@ -146,6 +146,56 @@ def get_launchconfigurations_delete_candidate(asg_client,
     return sorted(unused, key=lambda k: k['CreatedTime'])[0]
 
 
+def lambda_handler(event, context):
+    """
+    Delete ASG LaunchConfiguration if at the account limit
+    """
+
+    # Setup logging
+    logging.basicConfig(**{
+        'level': logging.INFO,
+        'format': '%(levelname)s - %(message)s',
+    })
+
+    # DryRun is not supported by the boto3 autoscaling client
+    if 'DryRun' in event:
+        raise NotImplementedError(
+            "The boto3 autoscaling client does not support DryRun")
+
+    candidate_params = {
+        'lc_limit': None,
+        'min_age': DEFAULT_MINIMUM_AGE,
+    }
+
+    # If the event includes a specified minimum age, use it
+    if 'MinAge' in event:
+        candidate_params.update({
+            'min_page': int(event['MinAge']),
+        })
+
+    # Create boto client for ASG API
+    client = boto3.client('autoscaling')
+
+    # Find a candidate
+    candidate = get_launchconfigurations_delete_candidate(
+        client,
+        **candidate_params)
+
+    # Delete the candidate
+    log.info("Candidate:")
+    log.info(json.dumps(
+        candidate,
+        indent=4,
+        separators=(',', ': ')))
+
+    # Execute the deletion
+    log.info("Attempting to delete the LaunchConfiguration")
+    client.delete_launch_configuration(
+        LaunchConfigurationName=candidate['LaunchConfigurationName'])
+
+    log.info("Successfully deleted LaunchConfiguration")
+
+
 if __name__ == '__main__':
     import json
     import sys
@@ -214,3 +264,5 @@ if __name__ == '__main__':
         except Exception as e:
             log.critical("Unknown failure!", exc_info=True)
             sys.exit(254)
+
+        log.info("Successfully deleted LaunchConfiguration")
