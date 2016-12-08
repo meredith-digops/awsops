@@ -6,7 +6,11 @@ launchconfigcleanup - Assists in cleaning up unused LaunchConfigurations
 Usage: launchconfigcleanup.py [options]
 
 Options:
+    -a, --minage DAYS   Minimum number of days a LaunchConfiguration must be
+                        to be considered a deletion candidate.
+
     -D, --delete        Delete a candidate if one is present
+
     -n, --maxlcs NUM    Maximum number of LaunchConfigurations allowed in the
                         AWS account. A candidate will only be presented if the
                         account is at its limit.
@@ -17,13 +21,42 @@ from __future__ import print_function
 import boto3
 import logging
 from botocore.exceptions import ClientError
+from datetime import datetime
+from datetime import timedelta
+from datetime import tzinfo
 
 
 log = logging.getLogger(__name__)
 """Create a logger"""
 
+DEFAULT_MINIMUM_AGE = 5
+"""Min age (days) a LaunchConfiguration must be to be a candidate"""
+
 DEFAULT_LAUNCHCONFIGURATION_LIMIT = 100
 """Max number of LaunchConfigurations allowed in AWS account"""
+
+ZERO = timedelta(0)
+
+
+class UTC(tzinfo):
+    """
+    Implements UTC timezone for datetime interaction
+    """
+    def utcoffset(self, dt):
+        return ZERO
+
+    def tzname(self, dt):
+        return "UTC"
+
+    def dst(self, dt):
+        return ZERO
+
+
+class AllCandidatesTooNew(Exception):
+    """
+    Defines a failure to find an old enough unused LC deletion candidate
+    """
+    pass
 
 
 def get_all_launchconfigurations(asg_client):
@@ -52,7 +85,8 @@ def get_inuse_launchconfigurations(asg_client):
 
 
 def get_launchconfigurations_delete_candidate(asg_client,
-        lc_limit=DEFAULT_LAUNCHCONFIGURATION_LIMIT):
+        lc_limit=DEFAULT_LAUNCHCONFIGURATION_LIMIT,
+        min_age=DEFAULT_MINIMUM_AGE):
     """
     Return the name of a LaunchConfiguration to delete if space is needed
 
@@ -60,6 +94,8 @@ def get_launchconfigurations_delete_candidate(asg_client,
     :type asg_client: botocore.client.AutoScaling
     :param lc_limit: Max number of LaunchConfigurations allowed in account
     :type lc_limit: int
+    :param min_age: Days old a LaunchConfiguration must be to be a candidate
+    :type min_age: int
     """
     all_lcs = [lc for lc in get_all_launchconfigurations(asg_client)]
 
@@ -81,6 +117,23 @@ def get_launchconfigurations_delete_candidate(asg_client,
     unused = [lc for lc in all_lcs if lc['LaunchConfigurationName'] not in used_lcs]
     log.debug("Found {} LaunchConfigurations unused".format(len(unused)))
 
+    # Find old enough candidates
+    min_created_time = datetime.now(UTC()) - timedelta(days=min_age)
+    log.warning("Finding LCs from before {}".format(min_created_time.isoformat()))
+    unused = [lc for lc in unused
+              if lc['CreatedTime'] <= min_created_time]
+
+    log.debug("Found {c} LaunchConfiguration candidate{s}".format(
+        c=len(unused),
+        s="" if len(unused) == 1 else "s"))
+
+    # If there are no old enough candidates, raise an exception
+    if len(unused) == 0:
+        raise AllCandidatesTooNew(
+            "No candidates at least {d} day{s} old!".format(
+                d=min_age,
+                s="" if min_age == 1 else "s"))
+
     return sorted(unused, key=lambda k: k['CreatedTime'])[0]
 
 
@@ -100,6 +153,7 @@ if __name__ == '__main__':
 
     do_delete = args['--delete']
     max_lcs = int(args['--maxlcs'] or DEFAULT_LAUNCHCONFIGURATION_LIMIT)
+    min_age = int(args['--minage'] or DEFAULT_MINIMUM_AGE)
 
     # Create boto client for ASG API
     client = boto3.client('autoscaling')
@@ -107,7 +161,8 @@ if __name__ == '__main__':
     # Find a deletion candidate
     candidate = get_launchconfigurations_delete_candidate(
         client,
-        max_lcs)
+        max_lcs,
+        min_age)
 
     # If no candidate is present, exit
     if candidate is None:
@@ -133,6 +188,10 @@ if __name__ == '__main__':
         try:
             client.delete_launch_configuration(
                 LaunchConfigurationName=candidate['LaunchConfigurationName'])
+
+        except AllCandidatesTooNew as e:
+            log.critical("Could not find an old enough deletion candidate!")
+            sys.exit(1)
 
         except ClientError as e:
             log.critical("Failed to delete LaunchConfiguration", exc_info=True)
