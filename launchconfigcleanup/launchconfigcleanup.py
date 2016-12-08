@@ -32,9 +32,6 @@ log = logging.getLogger(__name__)
 DEFAULT_MINIMUM_AGE = 5
 """Min age (days) a LaunchConfiguration must be to be a candidate"""
 
-DEFAULT_LAUNCHCONFIGURATION_LIMIT = 100
-"""Max number of LaunchConfigurations allowed in AWS account"""
-
 ZERO = timedelta(0)
 
 
@@ -57,6 +54,13 @@ class AllCandidatesTooNew(Exception):
     Defines a failure to find an old enough unused LC deletion candidate
     """
     pass
+
+
+def get_max_launchconfigurations(asg_client):
+    """
+    Return the maximum number of LaunchConfigurations allowed in account
+    """
+    return asg_client.describe_account_limits()['MaxNumberOfLaunchConfigurations']
 
 
 def get_all_launchconfigurations(asg_client):
@@ -85,7 +89,7 @@ def get_inuse_launchconfigurations(asg_client):
 
 
 def get_launchconfigurations_delete_candidate(asg_client,
-        lc_limit=DEFAULT_LAUNCHCONFIGURATION_LIMIT,
+        lc_limit=None,
         min_age=DEFAULT_MINIMUM_AGE):
     """
     Return the name of a LaunchConfiguration to delete if space is needed
@@ -97,6 +101,11 @@ def get_launchconfigurations_delete_candidate(asg_client,
     :param min_age: Days old a LaunchConfiguration must be to be a candidate
     :type min_age: int
     """
+    if lc_limit is None:
+        # If not explicit LaunchConfiguration limit provided, determine the
+        # max number allowed for the client account
+        lc_limit = get_max_launchconfigurations(asg_client)
+
     all_lcs = [lc for lc in get_all_launchconfigurations(asg_client)]
 
     if len(all_lcs) < lc_limit:
@@ -152,11 +161,16 @@ if __name__ == '__main__':
     args = docopt(__doc__, version='dev')
 
     do_delete = args['--delete']
-    max_lcs = int(args['--maxlcs'] or DEFAULT_LAUNCHCONFIGURATION_LIMIT)
+
+    max_lcs = int(args['--maxlcs'] or -1)
     min_age = int(args['--minage'] or DEFAULT_MINIMUM_AGE)
 
     # Create boto client for ASG API
     client = boto3.client('autoscaling')
+
+    # If no maxlcs was passed, determine the accounts maximum allowed
+    if max_lcs < 1:
+        max_lcs = get_max_launchconfigurations(client)
 
     # Find a deletion candidate
     candidate = get_launchconfigurations_delete_candidate(
