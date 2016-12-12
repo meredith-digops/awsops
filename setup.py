@@ -16,6 +16,7 @@ setup(
 
     extras_require = {
         'dev': [
+            'docopt',
             'terminaltables',
         ],
     }
