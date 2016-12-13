@@ -70,8 +70,10 @@ class ReservationChecker(object):
 
     def __init__(self, region=None):
         """
+        Instantiate class to recon used/unused instance reservations
 
-        :param region:
+        :param region: Explicit EC2 region to examine. Uses config as default
+        :type region: None|str
         """
         self._reservations = None
         self._unreserved = None
@@ -94,11 +96,11 @@ class ReservationChecker(object):
 
     def _find_unused_or_unreserved(self):
         """
-
-        :return:
+        Filters through all instances to propogate `unused` and `unreserved`
         """
         # Determine what AZs to look through for instances
         reserved_azs = [ri['AvailabilityZone'] for ri in self.reservations]
+        log.debug("Filtering through AZ: {}".format(reserved_azs))
 
         # Construct a request to find all EC2 instances that are not stopped or
         # terminated
