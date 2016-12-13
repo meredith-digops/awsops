@@ -106,10 +106,6 @@ class ReservationChecker(object):
         pageiter = pager.paginate(**{
             'Filters': [
                 {
-                    'Name': 'availability-zone',
-                    'Values': reserved_azs
-                },
-                {
                     'Name': 'instance-state-name',
                     'Values': [
                         'pending',
