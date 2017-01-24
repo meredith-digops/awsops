@@ -53,3 +53,19 @@ Options:
 
 Scheduled execution must be set up manually in the lambda console until boto3
 adds support.
+
+### Lambda Settings
+
+| Name | Descrption |
+| ---- | ---------- |
+| `SES_Send` | Switch to toggle emailed reports of reservations |
+| `SES.Source` | Mail-from address |
+| `SES.Destination` | _See [SendEmail](http://docs.aws.amazon.com/ses/latest/APIReference/API_SendEmail.html) API for details |
+| `Region` | Specific region to inspect. If `None`, will inspect the region Lambda is executing from |
+| `ReportOn` | List of reports to generate. Options: `reservation`, `unreserved`, `unused` |
+| `UnreservedDays` | Number of days to consider a running instance in need of a reservation |
+
+### Emailed Reports
+Ensure to either update the `LAMBDA_DEFAULTS` values, or inject values with
+a scheduled event to fill in the `SES.Source` and `SES.Destination` values.
+Failure to do so will result in emails failing to send.

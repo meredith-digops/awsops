@@ -30,6 +30,16 @@ log = logging.getLogger(__name__)
 ZERO = timedelta(0)
 
 LAMBDA_DEFAULTS = {
+    'SES_Send': True,
+    'SES': {
+        'Source': 'no-reply@your.ses.domain.com',
+        'Destination': {
+            'ToAddresses': [
+                'awsops@your.domain.com',
+            ],
+        },
+        'Subject': 'EC2 Instance Reservation Report',
+    },
     'Region': None,
     'ReportOn': [
         'unused',
@@ -376,6 +386,7 @@ def lambda_handler(event, context):
             region=event_settings['Region'])
 
     # Should a report be generated?
+    report_text = None
     if 'ReportOn' in event_settings:
         # Instantiate display class
         rcd = ReservationDisplay(rc)
@@ -401,6 +412,23 @@ def lambda_handler(event, context):
             report_text += "\n"
 
         print(report_text)
+
+    if report_text is not None and event_settings['SES_Send']:
+        print("\n\nEmailing report:\n" + str(event_settings['SES']['Destination']))
+        ses = boto3.client('ses')
+        resp = ses.send_email(
+            Source=event_settings['SES']['Source'],
+            Destination=event_settings['SES']['Destination'],
+            Message={
+                'Subject': {
+                    'Data': event_settings['SES']['Subject'],
+                },
+                'Body': {
+                    'Text': {
+                        'Data': report_text,
+                    },
+                },
+            })
 
 
 if __name__ == '__main__':
