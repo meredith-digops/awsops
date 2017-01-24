@@ -18,6 +18,7 @@ from __future__ import print_function
 
 import boto3
 import logging
+from copy import copy
 from datetime import datetime
 from datetime import timedelta
 from datetime import tzinfo
@@ -27,6 +28,15 @@ log = logging.getLogger(__name__)
 
 
 ZERO = timedelta(0)
+
+LAMBDA_DEFAULTS = {
+    'Region': None,
+    'ReportOn': [
+        'unused',
+        'unreserved',
+    ],
+    'UnreservedDays': 90,
+}
 
 
 class UTC(tzinfo):
@@ -352,6 +362,45 @@ class ReservationChecker(object):
             self._find_unused_or_unreserved()
 
         return self._unused
+
+
+def lambda_handler(event, context):
+    """
+    Assesses instance reservations and produces a report on them
+    """
+    event_settings = copy(LAMBDA_DEFAULTS)
+    event_settings.update(event)
+
+    # Instatiate checker
+    rc = ReservationChecker(
+            region=event_settings['Region'])
+
+    # Should a report be generated?
+    if 'ReportOn' in event_settings:
+        # Instantiate display class
+        rcd = ReservationDisplay(rc)
+
+        # Compose the report text
+        report_text = "\n".join([
+            '###############################',
+            '# Instance Reservation Report #',
+            '###############################',
+            '',
+            '',
+        ])
+
+        for report_item in event_settings['ReportOn']:
+            report_text += "\n".join([
+                ":" * (4 + len(report_item)),
+                ": " + report_item + " :",
+                ":" * (4 + len(report_item)),
+                "",
+            ])
+            for data_row in  getattr(rcd, report_item + '_data'):
+                report_text += str(data_row) + "\n"
+            report_text += "\n"
+
+        print(report_text)
 
 
 if __name__ == '__main__':
