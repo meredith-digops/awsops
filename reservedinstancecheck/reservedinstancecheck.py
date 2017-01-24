@@ -217,7 +217,7 @@ class ReservationChecker(object):
 
         if region is not None:
             client_args.update({
-                'region_name': args['--region'],
+                'region_name': region,
             })
 
         # Instantiate client
