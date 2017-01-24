@@ -43,6 +43,119 @@ class UTC(tzinfo):
         return ZERO
 
 
+class ReservationDisplay(object):
+    def __init__(self, checker):
+        """
+        Instantiates a new display instance
+        :param checker: Reservation checker
+        :type checker: ReservationChecker
+        """
+        self.checker = checker
+
+    @property
+    def reservation_data(self):
+        table_headers = [
+            'AvailabilityZone',
+            'InstanceType',
+            'InstanceCount',
+            'Start',
+            'End',
+        ]
+
+        table_data = []
+        for ri in self.checker.reservations:
+            table_row = []
+            for key in table_headers:
+                table_row.append(ri[key])
+            table_data.append(table_row)
+
+        return [table_headers] + sorted(table_data,
+                                        key=lambda x: x[0] + x[1])
+
+    @property
+    def unreserved_data(self):
+        table_headers = [
+            'AvailabilityZone',
+            'InstanceType',
+            'InstanceCount',
+        ]
+
+        # Reduce the unreserved instances to a dict grouping that a table
+        # can be built from.
+        unreserved_instances = {}
+        for instance in self.checker.unreserved:
+            instance_az = instance['Placement']['AvailabilityZone']
+            instance_type = instance['InstanceType']
+
+            if instance_az not in unreserved_instances:
+                unreserved_instances[instance_az] = {}
+
+            if instance_type not in unreserved_instances[instance_az]:
+                unreserved_instances[instance_az][instance_type] = 0
+
+            unreserved_instances[instance_az][instance_type] += 1
+
+        table_data = []
+        for az, instance_res in unreserved_instances.iteritems():
+            for instance_type, instance_count in instance_res.iteritems():
+                table_data.append([
+                    az,
+                    instance_type,
+                    instance_count,
+                ])
+
+        return [table_headers] + sorted(table_data,
+                                        reverse=True,
+                                        key=lambda x: x[2])
+
+    @property
+    def unused_data(self):
+        table_headers = [
+            'AvailabilityZone',
+            'InstanceType',
+            'InstanceCount',
+        ]
+
+        table_data = []
+        for az, instance_res in self.checker.unused.iteritems():
+            for instance_type, instance_count in instance_res.iteritems():
+                table_data.append([
+                    az,
+                    instance_type,
+                    instance_count,
+                ])
+
+        return [table_headers] + sorted(table_data,
+                                        reverse=True,
+                                        key=lambda x: x[2])
+
+
+class ReservationDisplayTerminal(ReservationDisplay):
+    @property
+    def reservation_table(self):
+        return "\n".join([
+            "",
+            AsciiTable(self.reservation_data,
+                       "Reservations ({})".format(self.checker.region)).table
+        ])
+
+    @property
+    def unreserved_table(self):
+        return "\n".join([
+            "",
+            AsciiTable(self.unreserved_data,
+                       "Unreserved ({})".format(self.checker.region)).table
+        ])
+
+    @property
+    def unused_table(self):
+        return "\n".join([
+            "",
+            AsciiTable(self.unused_data,
+                       "Unused ({})".format(self.checker.region)).table
+        ])
+
+
 class ReservationChecker(object):
     @classmethod
     def fetch_active_instance_reservations(cls, client, filters=[]):
@@ -262,69 +375,14 @@ if __name__ == '__main__':
     # Instantiate checker
     rc = ReservationChecker(region=args['--region'])
 
+    # Instantiate display class
+    rcd = ReservationDisplayTerminal(rc)
+
     if show_reservations:
-        table_headers = [
-            'AvailabilityZone',
-            'InstanceType',
-            'InstanceCount',
-            'Start',
-            'End',
-        ]
-
-        table_data = []
-        for ri in rc.reservations:
-            table_row = []
-            for key in table_headers:
-                table_row.append(ri[key])
-            table_data.append(table_row)
-
-        # Sort results
-        table_data.sort(key=lambda x: x[0] + x[1])
-
-        print()
-        print(AsciiTable(
-            [table_headers] + table_data,
-            "Reservations ({})".format(rc.region)).table)
+        print(rcd.reservation_table)
 
     if show_unused:
-        table_headers = [
-            'AvailabilityZone',
-            'InstanceType',
-            'Count',
-        ]
-
-        table_data = []
-        for az, typedict in rc.unused.iteritems():
-            for instance_type, unused_count in typedict.iteritems():
-                table_data.append([
-                    az,
-                    instance_type,
-                    unused_count
-                ])
-
-        print()
-        print(AsciiTable(
-            [table_headers] + table_data,
-            "Unused Reservations ({})".format(rc.region)).table)
+        print(rcd.unused_table)
 
     if show_unreserved:
-        table_headers = [
-            'AvailabilityZone',
-            'InstanceType',
-            'Count',
-        ]
-
-        table_data = []
-        for az, typedict in rc.unreserved_grouping_older_than(
-                days=int(args['--unreserved'])).iteritems():
-            for instance_type, unused_count in typedict.iteritems():
-                table_data.append([
-                    az,
-                    instance_type,
-                    unused_count
-                ])
-
-        print()
-        print(AsciiTable(
-            [table_headers] + table_data,
-            "Unreserved Instances ({})".format(rc.region)).table)
+        print(rcd.unreserved_table)
