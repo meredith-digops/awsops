@@ -201,13 +201,16 @@ class ReservationChecker(object):
 
         return resp['ReservedInstances']
 
-    def __init__(self, region=None):
+    def __init__(self, unreserved_days=None, region=None):
         """
         Instantiate class to recon used/unused instance reservations
 
+        :param unreserved_days: Number of days to consider an instance unreserved
+        :type unreserved_days: int
         :param region: Explicit EC2 region to examine. Uses config as default
         :type region: None|str
         """
+        self.unreserved_days = unreserved_days
         self._reservations = None
         self._unreserved = None
         self._unused = None
@@ -275,6 +278,12 @@ class ReservationChecker(object):
 
             self._unused[az][instance_type] += res['InstanceCount']
 
+        # Determine most recent datetime for which instances started on or
+        # before should be considered for the unreserved instance report.
+        if self.unreserved_days is not None:
+            launched_before = datetime.now(UTC()) \
+                    - timedelta(int(self.unreserved_days))
+
         # Iterate through all instances and tick off the ones that are
         # reserved
         self._unreserved = []
@@ -295,7 +304,10 @@ class ReservationChecker(object):
 
             except KeyError:
                 # No matching reservation
-                self._unreserved.append(instance)
+                if self.unreserved_days is not None \
+                        and instance['LaunchTime'] <= launched_before:
+                    # Old enough to be reported on
+                    self._unreserved.append(instance)
 
     @property
     def reservations(self):
@@ -450,7 +462,9 @@ if __name__ == '__main__':
     show_unreserved = True if args['--unreserved'] else False
 
     # Instantiate checker
-    rc = ReservationChecker(region=args['--region'])
+    rc = ReservationChecker(
+        unreserved_days=args['--unreserved'],
+        region=args['--region'])
 
     # Instantiate display class
     rcd = ReservationDisplayTerminal(rc)
