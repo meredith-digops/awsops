@@ -116,8 +116,8 @@ class ReservationDisplay(object):
         # can be built from.
         unreserved_instances = {}
         for instance in self.checker.unreserved:
-            instance_az = instance['Placement']['AvailabilityZone']
-            instance_type = instance['InstanceType']
+            instance_az = instance.placement['AvailabilityZone']
+            instance_type = instance.instance_type
 
             if instance_az not in unreserved_instances:
                 unreserved_instances[instance_az] = {}
@@ -213,7 +213,7 @@ class ReservationChecker(object):
 
         return resp['ReservedInstances']
 
-    def __init__(self, unreserved_days=None, region=None):
+    def __init__(self, unreserved_days=None, **kwargs):
         """
         Instantiate class to recon used/unused instance reservations
 
@@ -227,20 +227,12 @@ class ReservationChecker(object):
         self._unreserved = None
         self._unused = None
 
-        # Client setup
-        client_args = {}
-
-        if region is not None:
-            client_args.update({
-                'region_name': region,
-            })
-
         # Instantiate client
-        self.ec2 = boto3.client('ec2', **client_args)
+        self.ec2 = boto3.resource('ec2', **client_args)
 
     @property
     def region(self):
-        return self.ec2.meta.region_name
+        return self.ec2.meta.client.meta.region_name
 
     def _find_unused_or_unreserved(self):
         """
@@ -252,8 +244,7 @@ class ReservationChecker(object):
 
         # Construct a request to find all EC2 instances that are not stopped or
         # terminated
-        pager = self.ec2.get_paginator('describe_instances')
-        pageiter = pager.paginate(**{
+        all_instances = [i for i in self.ec2.instances.filter(**{
             'Filters': [
                 {
                     'Name': 'instance-state-name',
@@ -265,16 +256,10 @@ class ReservationChecker(object):
                     ]
                 }
             ]
-        })
-
-        # Accumulate all the instances from the region
-        all_instances = []
-        for page in pageiter:
-            for r in page['Reservations']:
-                all_instances += r['Instances']
+        })]
 
         # Order instances based on their creation time
-        all_instances = sorted(all_instances, key=lambda k: k['LaunchTime'])
+        all_instances = sorted(all_instances, key=lambda i: i.launch_time)
 
         # Mark all reservations as unused initially
         self._unused = {}
@@ -300,8 +285,8 @@ class ReservationChecker(object):
         # reserved
         self._unreserved = []
         for instance in all_instances:
-            az = instance['Placement']['AvailabilityZone']
-            instance_type = instance['InstanceType']
+            az = instance.placement['AvailabilityZone']
+            instance_type = instance.instance_type
 
             try:
                 self._unused[az][instance_type] -= 1
@@ -317,7 +302,7 @@ class ReservationChecker(object):
             except KeyError:
                 # No matching reservation
                 if self.unreserved_days is not None \
-                        and instance['LaunchTime'] <= launched_before:
+                        and instance.launch_time <= launched_before:
                     # Old enough to be reported on
                     self._unreserved.append(instance)
 
@@ -326,7 +311,7 @@ class ReservationChecker(object):
         if self._reservations is None:
             log.debug("Lazy loading reservations...")
             self._reservations = self.fetch_active_instance_reservations(
-                self.ec2)
+                self.ec2.meta.client)
             log.debug("Found {c} reservation{s}".format(
                 c=len(self._reservations),
                 s="" if len(self._reservations) == 1 else "s"
@@ -412,7 +397,7 @@ def lambda_handler(event, context):
 
     # Instatiate checker
     rc = ReservationChecker(
-            region=event_settings['Region'])
+            region_name=event_settings['Region'])
 
     # Should a report be generated?
     report_text = None
@@ -470,10 +455,6 @@ if __name__ == '__main__':
 
     # Parse command line arguments
     args = docopt(__doc__, version='dev')
-    if args['--region']:
-        client_args.update({
-            'region_name': args['--region'],
-        })
     show_reservations = args['--reservations']
     show_unused = args['--unused']
     show_unreserved = True if args['--unreserved'] else False
@@ -481,7 +462,7 @@ if __name__ == '__main__':
     # Instantiate checker
     rc = ReservationChecker(
         unreserved_days=args['--unreserved'],
-        region=args['--region'])
+        region_name=args['--region'])
 
     # Instantiate display class
     rcd = ReservationDisplayTerminal(rc)
