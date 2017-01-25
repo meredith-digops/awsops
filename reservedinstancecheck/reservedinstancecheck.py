@@ -22,14 +22,18 @@ from copy import copy
 from datetime import datetime
 from datetime import timedelta
 from datetime import tzinfo
+from dateutil import tz
 
 
 log = logging.getLogger(__name__)
 
 
+DATE_FORMAT = '%Y-%m-%d'
+LOCAL_TZ = tz.tzlocal()
 ZERO = timedelta(0)
 
 LAMBDA_DEFAULTS = {
+    'Local_TZ': 'America/Chicago',
     'SES_Send': True,
     'SES': {
         'Source': 'no-reply@your.ses.domain.com',
@@ -86,7 +90,15 @@ class ReservationDisplay(object):
         for ri in self.checker.reservations:
             table_row = []
             for key in table_headers:
-                table_row.append(ri[key])
+                col_value = ri[key]
+
+                if type(col_value) is datetime:
+                    # Return datetimes in a prettier fashion
+                    col_value = col_value.replace() \
+                        .astimezone(LOCAL_TZ) \
+                        .strftime(DATE_FORMAT)
+
+                table_row.append(col_value)
             table_data.append(table_row)
 
         return [table_headers] + sorted(table_data,
@@ -392,6 +404,11 @@ def lambda_handler(event, context):
     """
     event_settings = copy(LAMBDA_DEFAULTS)
     event_settings.update(event)
+
+    # Set the local timezone for datetime formatting if the parameter was
+    # passed to the Lambda function
+    if 'Local_TZ' in event_settings:
+        LOCAL_TZ = tz.gettz(event_settings['Local_TZ'])
 
     # Instatiate checker
     rc = ReservationChecker(

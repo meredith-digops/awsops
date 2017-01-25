@@ -58,6 +58,7 @@ adds support.
 
 | Name | Descrption |
 | ---- | ---------- |
+| `Local_TZ` | Define what timezone Lambda should report `datetime` objects in. Defaults to `America/Chicago`_(See [TZ Database](https://en.wikipedia.org/wiki/Tz_database) for options)_ |
 | `SES_Send` | Switch to toggle emailed reports of reservations |
 | `SES.Source` | Mail-from address |
 | `SES.Destination` | _See [SendEmail](http://docs.aws.amazon.com/ses/latest/APIReference/API_SendEmail.html) API for details |
