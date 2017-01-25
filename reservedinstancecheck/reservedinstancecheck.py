@@ -228,7 +228,7 @@ class ReservationChecker(object):
         self._unused = None
 
         # Instantiate client
-        self.ec2 = boto3.resource('ec2', **client_args)
+        self.ec2 = boto3.resource('ec2', **kwargs)
 
     @property
     def region(self):
@@ -397,6 +397,7 @@ def lambda_handler(event, context):
 
     # Instatiate checker
     rc = ReservationChecker(
+            unreserved_days=int(event_settings['UnreservedDays']),
             region_name=event_settings['Region'])
 
     # Should a report be generated?
