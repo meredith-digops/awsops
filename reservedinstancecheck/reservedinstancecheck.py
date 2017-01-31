@@ -383,6 +383,13 @@ class ReservationChecker(object):
         return self._unused
 
 
+def get_aws_account_id():
+    """ Returns the AWS account Id
+    """
+    return boto3.client('sts').get_caller_identity() \
+        .get('Account')
+
+
 def lambda_handler(event, context):
     """
     Assesses instance reservations and produces a report on them
