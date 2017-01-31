@@ -403,6 +403,8 @@ def lambda_handler(event, context):
     """
     Assesses instance reservations and produces a report on them
     """
+    import json
+
     event_settings = copy(LAMBDA_DEFAULTS)
     event_settings.update(event)
 
@@ -453,6 +455,10 @@ def lambda_handler(event, context):
                 account=get_aws_account_id(),
                 region=event_settings['Region'] or sns.meta.region_name),
             Message=report_text)
+        print(json.dumps(resp,
+                         indent=4,
+                         separators=(',', ': '),
+                         sort_keys=False))
 
 
 if __name__ == '__main__':
