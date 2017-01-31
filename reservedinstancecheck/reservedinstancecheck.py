@@ -32,9 +32,18 @@ DATE_FORMAT = '%Y-%m-%d'
 LOCAL_TZ = tz.tzlocal()
 ZERO = timedelta(0)
 
+DEFAULT_SNS_SUBJECT = "EC2 Instance Reservation Report ({account}, {region})"
+
 LAMBDA_DEFAULTS = {
     'Local_TZ': 'America/Chicago',
-    'SES_Send': True,
+    'SNS_Send': True,
+    # Define an SNS_Topic by default, or during Lambda invocation to specify
+    # what topic should receive the summary.
+    # 'SNS_Topic':
+
+    # Define an explicit SNS_Subject to be sent, otherwise the default will
+    # be "EC2 Instance Reservation Report ({account_alias}, {region})"
+    #'SNS_Subject':
     'SES': {
         'Source': 'no-reply@your.ses.domain.com',
         'Destination': {
@@ -435,22 +444,15 @@ def lambda_handler(event, context):
 
         print(report_text)
 
-    if report_text is not None and event_settings['SES_Send']:
-        print("\n\nEmailing report:\n" + str(event_settings['SES']['Destination']))
-        ses = boto3.client('ses')
-        resp = ses.send_email(
-            Source=event_settings['SES']['Source'],
-            Destination=event_settings['SES']['Destination'],
-            Message={
-                'Subject': {
-                    'Data': event_settings['SES']['Subject'],
-                },
-                'Body': {
-                    'Text': {
-                        'Data': report_text,
-                    },
-                },
-            })
+    if report_text is not None and event_settings['SNS_Send']:
+        print("\n\nSending report to SNS:" + event_settings['SNS_Topic'])
+        sns = boto3.client('sns', region_name=event_settings['Region'])
+        resp = sns.publish(
+            TargetArn=event_settings['SNS_Topic'],
+            Subject=event_settings.get('SNS_Subject', DEFAULT_SNS_SUBJECT).format(
+                account=get_aws_account_id(),
+                region=event_settings['Region'] or sns.meta.region_name),
+            Message=report_text)
 
 
 if __name__ == '__main__':
