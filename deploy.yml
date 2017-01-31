@@ -1,0 +1,84 @@
+---
+- hosts: localhost
+  connection: local
+  gather_facts: no
+
+  vars:
+    # Defines where to run Lambda & publish SNS from
+    aws_region: us-east-1
+
+    names:
+      lambda_role: "lambda-{{ func_name }}-role"
+      lambda_name: "awsops-{{ func_name }}"
+      lambda_handler: "{{ func_name }}.lambda_handler"
+      lambda_policy: "lambda-{{ func_name }}-policy"
+      sns_topic: "awsops-{{ func_name }}"
+      zip_name: "{{ func_name }}.zip"
+
+    lambda_config:
+      memory: 128
+      timeout: 60
+
+    reservedinstancecheck:
+      input:
+        SNS_Send: 1
+        SNS_Topic: "{{ report_topic.sns_arn }}"
+      schedule_name: "MondayNoonUTC"
+      schedule: "cron(0 12 ? * MON *)"
+
+  tasks:
+    - name: Create Lambda execution role
+      iam:
+        iam_type: role
+        name: "{{ names.lambda_role }}"
+        state: present
+        trust_policy:
+          Version: '2012-10-17'
+          Statement:
+            - Action: sts:AssumeRole
+              Effect: Allow
+              Principal:
+                Service: lambda.amazonaws.com
+
+    - name: Add inline policy for Lambda role
+      iam_policy:
+        iam_type: role
+        iam_name: "{{ names.lambda_role }}"
+        policy_name: "{{ names.lambda_policy }}"
+        policy_document: "{{ func_name }}/{{ func_name }}.json"
+        state: present
+
+    # TODO Replace with 'archive' module in >=ansible-2.3
+    - name: Create deployment zip
+      shell: zip ../{{ names.zip_name }} {{ func_name }}.py
+      args:
+        chdir: "./{{ func_name }}"
+
+    # If the 'lambda' module call comes too quickly, an error is emitted
+    # due to the role ARN not being able to be assumed
+    - name: Wait for IAM role to converge properly
+      pause:
+        seconds: 10
+
+    - name: Create Lambda function
+      lambda:
+        name: "{{ names.lambda_name }}"
+        description: "AWS Operations: {{ func_name }}"
+        state: present
+        zip_file: "{{ names.zip_name }}"
+        runtime: 'python2.7'
+        role: "arn:aws:iam::{{ lookup('get_aws_account_id') }}:role/{{ names.lambda_role }}"
+        handler: "{{ names.lambda_handler }}"
+        region: "{{ aws_region }}"
+        memory_size: "{{ lambda_config.memory }}"
+        timeout: "{{ lambda_config.timeout }}"
+      register: lambda_func
+
+    - name: Remove deployment zip
+      file:
+        path: "{{ names.zip_name }}"
+        state: absent
+
+    - include: "{{ func_name }}/setup.yml"
+
+# vim: ft=ansible

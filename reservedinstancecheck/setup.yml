@@ -1,0 +1,19 @@
+---
+- name: Setup SNS topic for sending reports
+  sns_topic:
+    name: "{{ names.sns_topic }}"
+    state: present
+    region: "{{ aws_region }}"
+  register: report_topic
+
+- name: Create CloudWatch event to send regularly
+  cloudwatchevent_rule:
+    name: "{{ reservedinstancecheck.schedule_name }}"
+    schedule_expression: "{{ reservedinstancecheck.schedule }}"
+    description: Run reports at noon UTC
+    targets:
+      - id: "{{ func_name }}"
+        arn: "{{ lambda_func.configuration.function_arn }}"
+        input: "{{ reservedinstancecheck.input | to_json }}"
+
+# vim: ft=ansible
