@@ -7,8 +7,7 @@
       "Action": [
         "ec2:DescribeInstances",
         "ec2:DescribeReservedInstances",
-        "ses:SendEmail",
-        "ses:SendRawEmail"
+        "sns:Publish"
       ],
       "Resource": "*"
     }
