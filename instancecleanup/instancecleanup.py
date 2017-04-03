@@ -61,12 +61,19 @@ def get_stale_instances(ec2, filters, retention_days):
     for instance in candidate_instances:
         # Determine the retention days or use the default provided to this
         # function call
-        instance_retention = retention_days
+        instance_retention = None
         if instance.tags:
-            # TODO: The following will raise an exception if no tags present
-            for tag in instance.tags:
-                if tag['Key'] == RETENTION_TAG_KEY:
-                    instance_retention = int(tag['Value'])
+            try:
+                for tag in instance.tags:
+                    if tag['Key'] == RETENTION_TAG_KEY:
+                        instance_retention = int(tag['Value'])
+            except TypeError:
+                # instance.tags == None
+                pass
+
+        # Ignore instances missing the retention tag
+        if not instance_retention:
+            continue
 
         # If the instance was started longer ago than the retention period is,
         # report this instance id as stale for potential termination
