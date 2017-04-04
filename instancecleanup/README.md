@@ -72,16 +72,9 @@ for full documentation of the supported filters.
 
 ### Retention
 
-Instance retention is looked up via the `ops:retention` tag if available.
-Otherwise the retention is configurable at runtime via the `Retention`
-property.  It defaults to `None` so only instances with the `ops:retention`
-tag will be affected:
-
-```json
-{
-  "Retention": 60
-}
-```
+Instance retention is looked up via the `ops:retention` tag if available. If
+that tag is not present for a given instance, that instance will not at all be
+considered a termination candidate.
 
 ## Scheduling
 
