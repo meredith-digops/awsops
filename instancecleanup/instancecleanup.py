@@ -43,7 +43,7 @@ class UTC(tzinfo):
         return ZERO
 
 
-def get_stale_instances(ec2, filters, include_protected=False):
+def get_stale_instances(ec2, filters, include_protected=True):
     """
     Find EC2 instance IDs that have been created long enough ago we want to remove
 
