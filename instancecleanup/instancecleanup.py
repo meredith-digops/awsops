@@ -155,6 +155,9 @@ def lambda_handler(event, context):
             if e.response['Error']['Code'] == 'DryRunOperation':
                 pass
 
+            log.debug(e.message, exc_info=True)
+            log.error(e.message)
+
 
 if __name__ == '__main__':
     from docopt import docopt
