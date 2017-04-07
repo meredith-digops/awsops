@@ -11,4 +11,9 @@ This project aims to automate common operational tasks for AWS accounts.
 See the individual function folders for documentation.  Currently implemented functions:
 
 * amicleanup
+* instancecleanup
+* launchconfigcleanup
+* reservedinstancecheck
 * snapshotcleanup
+* snapshotcleanup
+* volumecleanup

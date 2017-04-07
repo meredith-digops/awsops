@@ -9,37 +9,50 @@ Options:
     -h, --help          Show this screen
     --version           Show the script version
     --hot-run           Actually terminate instance(s)
-    --days=<D>          Number of days since the instance was stopped
     --log-level LEVEL   Logging level (see logging module)
 """
 
-from __future__ import print_function
 import boto3
 import logging
 import re
 from datetime import datetime
 from datetime import timedelta
+from datetime import tzinfo
 from botocore.exceptions import ClientError
 
-
-DEFAULT_RETENTION_DAYS = None
-"""Define number of days to retain a stopped instance by default, if None is unused"""
 
 RETENTION_TAG_KEY = 'ops:retention'
 """Define tag that can explicitly set retention days on per-instance basis"""
 
+ZERO = timedelta(0)
+
+
 log = logging.getLogger(__name__)
 
+class UTC(tzinfo):
+    """
+    Implements UTC timezone for datetime interaction
+    """
+    def utcoffset(self, dt):
+        return ZERO
 
-def get_stale_instances(ec2, filters, retention_days):
+    def tzname(self, dt):
+        return "UTC"
+
+    def dst(self, dt):
+        return ZERO
+
+
+def get_stale_instances(ec2, filters, include_protected=True):
     """
     Find EC2 instance IDs that have been created long enough ago we want to remove
 
     :param ec2: boto3 ec2 resource
+    :type ec2: boto3.resources.factory.ec2.ServiceResource
     :param filters: List of filters
     :type filters: list
-    :param retention_days: Number of days
-    :type retention_days: int
+    :param include_protected: Flag to include or exclude termination protected instances
+    :type include_protected: bool
     :return: List of instance IDs
     :rtype: list
     """
@@ -56,29 +69,41 @@ def get_stale_instances(ec2, filters, retention_days):
     # determined to be stale
     stale_instances = []
 
+    now = datetime.now(UTC())
+
     # Loop through the candidate instances to see which ones we can assert are
     # candidates for termination
     for instance in candidate_instances:
         # Determine the retention days or use the default provided to this
         # function call
-        instance_retention = retention_days
+        instance_retention = None
         if instance.tags:
-            # TODO: The following will raise an exception if no tags present
-            for tag in instance.tags:
-                if tag['Key'] == RETENTION_TAG_KEY:
-                    instance_retention = int(tag['Value'])
+            try:
+                for tag in instance.tags:
+                    if tag['Key'] == RETENTION_TAG_KEY:
+                        instance_retention = int(tag['Value'])
+            except TypeError:
+                # instance.tags == None
+                pass
+
+        # Ignore instances missing the retention tag
+        if not instance_retention:
+            continue
 
         # If the instance was started longer ago than the retention period is,
         # report this instance id as stale for potential termination
-        now = datetime.now(instance.meta.data['LaunchTime'].tzinfo)
-        if instance_retention and \
-                instance.meta.data['LaunchTime'] <= (now - timedelta(days=instance_retention)):
-
-            # This instance might be considered stale, but first check if it
-            # has termination protection enabled
-            has_protection = ec2.meta.client.describe_instance_attribute(
-                InstanceId=instance.id,
-                Attribute='disableApiTermination')['DisableApiTermination']['Value']
+        if instance.meta.data['LaunchTime'] <= (now - timedelta(days=instance_retention)):
+            if include_protected:
+                # If the request is including instances with termination
+                # protection, simply assume it doesn't the for the following
+                # conditional
+                has_protection = False
+            else:
+                # This instance might be considered stale, but first check if it
+                # has termination protection enabled
+                has_protection = ec2.meta.client.describe_instance_attribute(
+                    InstanceId=instance.id,
+                    Attribute='disableApiTermination')['DisableApiTermination']['Value']
 
             if not has_protection:
                 # Instances are only stale if they don't have termination
@@ -101,31 +126,19 @@ def lambda_handler(event, context):
         # If no filter is specified, at least make an empty list
         event['Filters'] = []
 
-    if 'Retention' not in event:
-        event['Retention'] = DEFAULT_RETENTION_DAYS
-
     ec2 = boto3.resource('ec2')
     stale_instances = get_stale_instances(ec2,
-                                          event['Filters'],
-                                          event['Retention'])
+                                          event['Filters'])
 
     if event['DryRun']:
-        print("WARNING: DryRun only, no instances will be terminated!")
+        log.warning("WARNING: DryRun only, no instances will be terminated!")
 
-    log.info("Found {c} stale instances (stopped >= {ret} days ago)".format(
-        c=len(stale_instances),
-        ret=event['Retention']
-    ))
-    print("Found {c} stale instances (stopped >= {ret} days ago)".format(
-        c=len(stale_instances),
-        ret=event['Retention']
+    log.info("Found {c} stale instances".format(
+        c=len(stale_instances)
     ))
 
     for instance_id in stale_instances:
         log.warning("Terminating: {id}".format(
-            id=instance_id
-        ))
-        print("Terminating: {id}".format(
             id=instance_id
         ))
 
@@ -142,6 +155,9 @@ def lambda_handler(event, context):
             if e.response['Error']['Code'] == 'DryRunOperation':
                 pass
 
+            log.debug(e.message, exc_info=True)
+            log.error(e.message)
+
 
 if __name__ == '__main__':
     from docopt import docopt
@@ -149,8 +165,6 @@ if __name__ == '__main__':
     args = docopt(__doc__, version='unspecified')
     log_level = args['--log-level'] if args['--log-level'] \
                                     else 'warning'
-    retention_days = int(args['--days']) if args['--days'] \
-                                         else DEFAULT_RETENTION_DAYS
     dry_run = not args['--hot-run']
 
     logging.basicConfig(**{
@@ -160,7 +174,6 @@ if __name__ == '__main__':
 
     lambda_handler(
         event={
-            'Retention': retention_days,
             'DryRun': dry_run,
         },
         context={})

@@ -1,6 +1,12 @@
 # instancecleanup
 
-AWS Lambda function to cleanup stopped EC2 instances.
+AWS Lambda function to cleanup EC2 instances running longer than their
+`ops:retention` tag allows for.
+
+**Important:** If it's possible or even desired that instances be run longer
+than the `ops:retention` tag specifies, you _must_ enable
+[termination protection](http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/terminating-instances.html#Using_ChangingDisableAPITermination)
+to prevent this utility from terminating an instance you still want or need!
 
 ## Requirements
 
@@ -66,16 +72,9 @@ for full documentation of the supported filters.
 
 ### Retention
 
-Instance retention is looked up via the `ops:retention` tag if available.
-Otherwise the retention is configurable at runtime via the `Retention`
-property.  It defaults to `None` so only instances with the `ops:retention`
-tag will be affected:
-
-```json
-{
-  "Retention": 60
-}
-```
+Instance retention is looked up via the `ops:retention` tag if available. If
+that tag is not present for a given instance, that instance will not at all be
+considered a termination candidate.
 
 ## Scheduling
 
