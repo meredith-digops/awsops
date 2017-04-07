@@ -12,7 +12,6 @@ Options:
     --log-level LEVEL   Logging level (see logging module)
 """
 
-from __future__ import print_function
 import boto3
 import logging
 import re
@@ -132,7 +131,7 @@ def lambda_handler(event, context):
                                           event['Filters'])
 
     if event['DryRun']:
-        print("WARNING: DryRun only, no instances will be terminated!")
+        log.warning("WARNING: DryRun only, no instances will be terminated!")
 
     log.info("Found {c} stale instances".format(
         c=len(stale_instances)
@@ -140,9 +139,6 @@ def lambda_handler(event, context):
 
     for instance_id in stale_instances:
         log.warning("Terminating: {id}".format(
-            id=instance_id
-        ))
-        print("Terminating: {id}".format(
             id=instance_id
         ))
 
