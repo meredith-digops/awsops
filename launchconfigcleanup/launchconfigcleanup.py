@@ -7,13 +7,23 @@ Usage: launchconfigcleanup.py [options]
 
 Options:
     -a, --minage DAYS   Minimum number of days a LaunchConfiguration must be
-                        to be considered a deletion candidate.
+                        to be considered a deletion candidate. [default: 5]
 
-    -D, --delete        Delete a candidate if one is present
+    -D, --delete NUM    Number of candidates to delete [default: 1]
+                        If this number is negative, this script determines how
+                        many LaunchConfigurations need to be deleted to ensure
+                        that number of slots is available away from the
+                        maximum.
+
+    --dry-run           Only log what would happen, do not delete any
+                        LaunchConfigurations
 
     -n, --maxlcs NUM    Maximum number of LaunchConfigurations allowed in the
-                        AWS account. A candidate will only be presented if the
-                        account is at its limit.
+                        AWS account. This parameter should only be used during
+                        testing, otherwise the script will determine what your
+                        accounts limitation is.
+
+    -l, --log-level LEVEL   What logging level to use [default: warning]
 """
 
 from __future__ import print_function
@@ -29,10 +39,21 @@ from datetime import tzinfo
 log = logging.getLogger(__name__)
 """Create a logger"""
 
-DEFAULT_MINIMUM_AGE = 5
-"""Min age (days) a LaunchConfiguration must be to be a candidate"""
-
 ZERO = timedelta(0)
+
+LAMBDA_DEFAULTS = {
+    # --dry-run
+    'DryRun': False,
+    # --delete
+    'LC_Delete': 1,
+    # --maxlcs
+    'LC_Limit': lambda c: get_max_launchconfigurations(c),
+    # --log-level
+    'LogLevel': 'info',
+    # --minage
+    'MinAge': 5,
+}
+"""Default parameters for Lambda, these mimic the docopt arguments"""
 
 
 class UTC(tzinfo):
@@ -49,9 +70,9 @@ class UTC(tzinfo):
         return ZERO
 
 
-class AllCandidatesTooNew(Exception):
+class InsufficientCandidates(Exception):
     """
-    Defines a failure to find an old enough unused LC deletion candidate
+    Defines a failure to delete the requested number of LaunchConfigurations
     """
     pass
 
@@ -88,62 +109,45 @@ def get_inuse_launchconfigurations(asg_client):
             yield asg['LaunchConfigurationName']
 
 
-def get_launchconfigurations_delete_candidate(asg_client,
-        lc_limit=None,
-        min_age=DEFAULT_MINIMUM_AGE):
+def get_launchconfiguration_deletion_candidates(asg_client, min_age):
     """
-    Return the name of a LaunchConfiguration to delete if space is needed
+    Get a list of LaunchConfigurations that may be deleted
 
     :param asg_client: boto3 autoscaling client
     :type asg_client: botocore.client.AutoScaling
-    :param lc_limit: Max number of LaunchConfigurations allowed in account
-    :type lc_limit: int
     :param min_age: Days old a LaunchConfiguration must be to be a candidate
     :type min_age: int
+    :return: Tuple of (deletion_candidates, all_launch_configs)
+    :rtype: tuple
     """
-    if lc_limit is None:
-        # If not explicit LaunchConfiguration limit provided, determine the
-        # max number allowed for the client account
-        lc_limit = get_max_launchconfigurations(asg_client)
-
     all_lcs = [lc for lc in get_all_launchconfigurations(asg_client)]
-
-    if len(all_lcs) < lc_limit:
-        # No LC needs to be deleted
-        log.info("{lc} < {limit}, no LaunchConfiguration deletion needed".format(
-            lc=len(all_lcs),
-            limit=lc_limit))
-        return None
-
-    log.warning("At LaunchConfiguration limit! ({limit})".format(
-        limit=lc_limit))
 
     # Find LCs that are in-use
     used_lcs = [lc_name for lc_name in get_inuse_launchconfigurations(asg_client)]
-    log.debug("Found {} LaunchConfigurations in-use".format(len(used_lcs)))
+    log.info("Found {} LaunchConfigurations in-use".format(len(used_lcs)))
 
     # Determine unused LCs
     unused = [lc for lc in all_lcs if lc['LaunchConfigurationName'] not in used_lcs]
-    log.debug("Found {} LaunchConfigurations unused".format(len(unused)))
+    log.info("Found {} LaunchConfigurations unused".format(len(unused)))
 
     # Find old enough candidates
     min_created_time = datetime.now(UTC()) - timedelta(days=min_age)
     log.warning("Finding LCs from before {}".format(min_created_time.isoformat()))
-    unused = [lc for lc in unused
-              if lc['CreatedTime'] <= min_created_time]
+    candidates = [lc for lc in unused
+                  if lc['CreatedTime'] <= min_created_time]
 
-    log.debug("Found {c} LaunchConfiguration candidate{s}".format(
-        c=len(unused),
-        s="" if len(unused) == 1 else "s"))
+    return sorted(candidates, key=lambda k: k['CreatedTime']), all_lcs
 
-    # If there are no old enough candidates, raise an exception
-    if len(unused) == 0:
-        raise AllCandidatesTooNew(
-            "No candidates at least {d} day{s} old!".format(
-                d=min_age,
-                s="" if min_age == 1 else "s"))
 
-    return sorted(unused, key=lambda k: k['CreatedTime'])[0]
+def json_serial(obj):
+    """
+    Handles formatting datetimes
+    Source: http://stackoverflow.com/a/22238613
+    """
+    if isinstance(obj, datetime):
+        return obj.isoformat()
+
+    raise TypeError("{t} is not serializeable".format(t=type(obj)))
 
 
 def lambda_handler(event, context):
@@ -152,48 +156,74 @@ def lambda_handler(event, context):
     """
 
     # Setup logging
+    log_level = event.get('LogLevel', False) or LAMBDA_DEFAULTS['LogLevel']
     logging.basicConfig(**{
-        'level': logging.INFO,
-        'format': '%(levelname)s - %(message)s',
+        'level': getattr(logging, log_level.upper()),
+        'format': '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     })
-
-    # DryRun is not supported by the boto3 autoscaling client
-    if 'DryRun' in event:
-        raise NotImplementedError(
-            "The boto3 autoscaling client does not support DryRun")
-
-    candidate_params = {
-        'lc_limit': None,
-        'min_age': DEFAULT_MINIMUM_AGE,
-    }
-
-    # If the event includes a specified minimum age, use it
-    if 'MinAge' in event:
-        candidate_params.update({
-            'min_page': int(event['MinAge']),
-        })
 
     # Create boto client for ASG API
     client = boto3.client('autoscaling')
 
-    # Find a candidate
-    candidate = get_launchconfigurations_delete_candidate(
+    # Determine runtime parameters
+    dry_run = bool(event.get('DryRun', LAMBDA_DEFAULTS['DryRun']))
+    delete_count = int(event.get('LC_Delete', False) or LAMBDA_DEFAULTS['LC_Delete'])
+    resource_limit = int(event.get('LC_Limit', False) or LAMBDA_DEFAULTS['LC_Limit'](client))
+    min_age = int(event.get('MinAge', False) or LAMBDA_DEFAULTS['MinAge'])
+
+    # DryRun is not supported by the boto3 autoscaling client
+    if dry_run:
+        log.warning("DryRun not supported by boto3 or the API!"
+                    " A log line will be emitted instead")
+
+    # Find candidates
+    candidates, all_lcs = get_launchconfiguration_deletion_candidates(
         client,
-        **candidate_params)
+        min_age=min_age)
 
     # Delete the candidate
-    log.info("Candidate:")
-    log.info(json.dumps(
-        candidate,
+    log.warning("Found {c} candidate{s}".format(
+        c=len(candidates),
+        s="" if len(candidates) == 1 else "s"))
+    log.debug(json.dumps(
+        candidates,
         indent=4,
-        separators=(',', ': ')))
+        default=json_serial))
+
+    if delete_count < 0:
+        # We want to delete as many as necessary to be this many below the
+        # resource limit
+        delete_count = ((resource_limit - len(all_lcs)) + delete_count) * -1
 
     # Execute the deletion
-    log.info("Attempting to delete the LaunchConfiguration")
-    client.delete_launch_configuration(
-        LaunchConfigurationName=candidate['LaunchConfigurationName'])
+    log.warning("Attempting to delete {c} LaunchConfiguration resource{s}".format(
+        c=delete_count,
+        s="" if delete_count == 1 else "s"))
 
-    log.info("Successfully deleted LaunchConfiguration")
+    while delete_count > 0:
+        try:
+            lc = candidates.pop(0)
+        except IndexError as e:
+            raise InsufficientCandidates(
+                "Failed to delete {c} remaining resource{s}".format(
+                    c=delete_count,
+                    s="" if delete_count == 1 else "s")
+            )
+
+        if not dry_run:
+            client.delete_launch_configuration(
+                LaunchConfigurationName=lc['LaunchConfigurationName'])
+        else:
+            log.warning(
+                "DryRun: Would have deleted this LaunchConfiguration:\n"
+                + json.dumps(lc,
+                             indent=4,
+                             default=json_serial)
+            )
+
+        delete_count -= 1
+
+    log.warning("Successfully deleted LaunchConfiguration(s)")
 
 
 if __name__ == '__main__':
@@ -201,68 +231,22 @@ if __name__ == '__main__':
     import sys
     from docopt import docopt
 
-    # Setup logging
-    logging.basicConfig(**{
-        'level': logging.INFO,
-        'format': '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    })
-
     # Parse CLI arguments
     args = docopt(__doc__, version='dev')
 
-    do_delete = args['--delete']
+    try:
+        lambda_handler(
+            event={
+                'DryRun': args['--dry-run'],
+                'LC_Delete': args['--delete'],
+                'LC_Limit': args['--maxlcs'],
+                'LogLevel': args['--log-level'],
+                'MinAge': args['--minage'],
+            },
+            context={}
+        )
 
-    max_lcs = int(args['--maxlcs'] or -1)
-    min_age = int(args['--minage'] or DEFAULT_MINIMUM_AGE)
-
-    # Create boto client for ASG API
-    client = boto3.client('autoscaling')
-
-    # If no maxlcs was passed, determine the accounts maximum allowed
-    if max_lcs < 1:
-        max_lcs = get_max_launchconfigurations(client)
-
-    # Find a deletion candidate
-    candidate = get_launchconfigurations_delete_candidate(
-        client,
-        max_lcs,
-        min_age)
-
-    # If no candidate is present, exit
-    if candidate is None:
-        log.warning("No deletion candidate found")
-        sys.exit(0)
-
-    # Convert the candidates CreatedTime field to a string for serialization
-    if 'CreatedTime' in candidate:
-        candidate.update({
-            'CreatedTime': candidate['CreatedTime'].isoformat()
-        })
-
-    log.info("Candidate:")
-    log.info(json.dumps(
-        candidate,
-        indent=4,
-        separators=(',', ': ')))
-
-    if do_delete:
-        # Execution the deletion
-        log.info("Attempting to delete the LaunchConfiguration")
-
-        try:
-            client.delete_launch_configuration(
-                LaunchConfigurationName=candidate['LaunchConfigurationName'])
-
-        except AllCandidatesTooNew as e:
-            log.critical("Could not find an old enough deletion candidate!")
-            sys.exit(1)
-
-        except ClientError as e:
-            log.critical("Failed to delete LaunchConfiguration", exc_info=True)
-            sys.exit(254)
-
-        except Exception as e:
-            log.critical("Unknown failure!", exc_info=True)
-            sys.exit(254)
-
-        log.info("Successfully deleted LaunchConfiguration")
+    except InsufficientCandidates as e:
+        log.critical(str(e))
+        log.info(str(e), exc_info=True)
+        sys.exit(1)
