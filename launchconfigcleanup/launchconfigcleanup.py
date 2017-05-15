@@ -29,6 +29,7 @@ Options:
 from __future__ import print_function
 
 import boto3
+import json
 import logging
 from botocore.exceptions import ClientError
 from datetime import datetime
@@ -227,7 +228,6 @@ def lambda_handler(event, context):
 
 
 if __name__ == '__main__':
-    import json
     import sys
     from docopt import docopt
 
