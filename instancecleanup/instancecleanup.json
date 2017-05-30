@@ -15,6 +15,7 @@
       "Sid": "",
       "Effect": "Allow",
       "Action": [
+        "ec2:DescribeInstanceAttribute",
         "ec2:DescribeInstances",
         "ec2:TerminateInstances"
       ],
