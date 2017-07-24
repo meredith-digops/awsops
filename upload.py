@@ -34,7 +34,7 @@ function_file = os.path.join(function_name, '%s.py' % function_name)
 lambda_name = 'awsops-%s' % function_name
 policy_file = os.path.join(function_name, '%s.json' % function_name)
 policy_name = 'lambda-%s-policy' % function_name
-role_name = 'labmda-%s-role' % function_name
+role_name = 'lambda-%s-role' % function_name
 
 def already_exists(e):
     return 'already exist' in str(e)
