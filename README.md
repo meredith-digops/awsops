@@ -15,5 +15,5 @@ See the individual function folders for documentation.  Currently implemented fu
 * launchconfigcleanup
 * reservedinstancecheck
 * snapshotcleanup
-* snapshotcleanup
+* snapshotcreation
 * volumecleanup
