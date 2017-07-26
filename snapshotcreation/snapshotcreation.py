@@ -3,12 +3,24 @@
 from __future__ import print_function
 
 import boto3
+import time
 from botocore.exceptions import ClientError
+from datetime import datetime
+
+
+def get_unix_timestamp():
+    """
+    Generate a Unix timestamp string.
+    """
+
+    d = datetime.now()
+    t = time.mktime(d.timetuple())
+    return str(int(t))
 
 
 def lambda_handler(event, context):
     """
-    Create EBS snapshots for instances identified by the filter.
+    Create EBS AMI for instances identified by the filter.
     """
 
     if not 'DryRun' in event:
@@ -24,36 +36,32 @@ def lambda_handler(event, context):
 
     # Iterate through instances identified by the filter.
     for instance in ec2.instances.filter(Filters=event['Filters']):
+        instance_name = instance.instance_id
+        instance_tags = []
 
-        # Iterate through volumes mapped to the instance.
-        for block_device_mapping in instance.block_device_mappings:
-            instance_name = instance.instance_id
+        # If a Name tag is available, use it to identify the instance
+        # instead of the instance_id.
+        for tag in instance.tags:
+            if tag['Key'] == 'Name' and tag['Value'] != '':
+                instance_name = tag['Value']
+            else:
+                instance_tags.append(tag)
 
-            # If a Name tag is available, use it to identify the snapshot
-            # instead of the instance_id.
-            for tag in instance.tags:
-                if tag['Key'] == 'Name' and tag['Value'] != '':
-                    instance_name = tag['Value']
-                    break
+        try:
+            # Create the AMI
+            image_name = instance_name + '-' + get_unix_timestamp()
+            image = instance.create_image(
+                        Name=image_name,
+                        NoReboot=True,
+                        DryRun=event['DryRun']
+                    )
+            print('Started image creation: ' + image_name)
 
-            # Name the snapshot.
-            snapshot_description = instance_name + ' - ' \
-                + block_device_mapping['DeviceName']
-
-            try:
-                # Create the snapshot.
-                snapshot = ec2.create_snapshot(
-                    Description=snapshot_description,
-                    VolumeId=block_device_mapping['Ebs']['VolumeId'],
-                    DryRun=event['DryRun']
-                )
-
-                # Add retention tags to the snapshot.
-                snapshot.create_tags(
-                    Tags=[{'Key': 'ops:retention', 'Value': '30'}],
-                    DryRun=event['DryRun']
-                )
-
-            except ClientError as e:
-                if e.response['Error']['Code'] == 'DryRunOperation':
-                    pass
+            image_tags = [{'Key': 'ops:retention', 'Value': '30'}] + instance_tags
+            image.create_tags(
+                Tags=image_tags,
+                DryRun=event['DryRun']
+            )
+        except ClientError as e:
+            if e.response['Error']['Code'] == 'DryRunOperation':
+                pass
