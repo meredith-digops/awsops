@@ -29,7 +29,7 @@ def lambda_handler(event, context):
     if not 'Filters' in event:
         event['Filters'] = [{
             'Name': 'tag-key',
-            'Values': ['ops:needs_snapshot']
+            'Values': ['ops:snapshot']
         }]
 
     ec2 = boto3.resource('ec2')
