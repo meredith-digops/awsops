@@ -1,6 +1,6 @@
-# snapshotcleanup
+# amicreation
 
-AWS Lambda function to create EBS snapshots.
+AWS Lambda function to create EBS AMIs.
 
 ## Requirements
 
@@ -19,7 +19,7 @@ $ export AWS_SECRET_ACCESS_KEY=<XXXXXXXXXXXXXXXX>
 Run the `upload.py` script to setup IAM roles, policies, and lambda function for execution.
 
 ```bash
-$ python upload.py snapshotcreation
+$ python upload.py amicreation
 ```
 
 ## Usage
@@ -36,7 +36,7 @@ A dry run can be executed by setting the `DryRun` attribute to `true`.
 
 ### Filters
 
-By default only instances with the `ops:needs_snapshot` tag set will be affected.  The lambda function can be passed filters at runtime to change which EC2 instances are affected:
+By default only instances with the `ops:snapshot` tag set will be affected.  The lambda function can be passed filters at runtime to change which EC2 instances are affected:
 
 ```json
 {
@@ -53,10 +53,10 @@ By default only instances with the `ops:needs_snapshot` tag set will be affected
 
 See [boto3 EC2 service resources](http://boto3.readthedocs.org/en/latest/reference/services/ec2.html#service-resource) for full documentation of the supported filters.
 
-### Snapshot Creation
+### AMI Creation
 
-Snapshot creation is opted into by adding the `ops:needs_snapshot` tag to an EC2 instance. The script will create a snapshot for all of the volumes attached to the instance and will assign a default `ops:retention` tag to facilitate cleanup in the future.
+AMI creation is opted into by adding the `ops:snapshot` tag to an EC2 instance with `Daily` as the value. Currently, the script will not enforce the `Daily` value, but it should be present for forward compatibility. The script will create an AMI for the instance and will assign a default `ops:retention` tag with a value of 30 to facilitate cleanup in the future.
 
 ## Scheduling
 
-Scheduled execution must be set up manually in the lambda console until boto3 adds support.
+Scheduled execution must be set up manually in the lambda console until boto3 adds support. The schedule should be configured to run daily until additional schedule support is added.
