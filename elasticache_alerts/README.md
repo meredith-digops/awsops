@@ -33,7 +33,7 @@ There are several facets of installation that _are not_ addressed by this script
 - Creation of SNS topic
 - Configuration of ElastiCache to use the SNS topic
 - Creation of SNS topic to relay important messages to
-- Configuration of `RELAY_TOPIC` and `RELAY_MESSAGES` environmental variables
+- Configuration of `RELAY_TOPIC` and `NO_RELAY_MESSAGES` environmental variables
 for Lambda execution.
 
 ## Usage
@@ -47,12 +47,12 @@ There is no DryRun supported by this API.
 | Name | Descrption |
 | ---- | ---------- |
 | `RELAY_TOPIC` | SNS ARN to relay important messages to |
-| `RELAY_MESSAGES` | List of message types to relay |
+| `NO_RELAY_MESSAGES` | List of message types to *not* relay |
 
-Example `RELAY_MESSAGES`:
+Example `NO_RELAY_MESSAGES`:
 
 ```
-"elasticache:addcachenodecomplete","elasticache:cacheclusterparameterschanged","elasticache:cacheclusterprovisioningcomplete","elasticache:cacheclusterscalingcomplete","elasticache:cacheclustersecuritygroupmodified","elasticache:cachenodereplacecomplete","elasticache:createreplicationgroupcomplete","elasticache:deletecacheclustercomplete","elasticache:removecachenodecomplete","elasticache:replicationgroupscalingcomplete","elasticache:snapshotcomplete"
+"elasticache:snapshotcomplete"
 ```
 
 **Note:** `RELAY_MESSAGES` must be compliant input for a JSON list and each
