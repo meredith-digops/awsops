@@ -12,6 +12,7 @@ See the individual function folders for documentation.  Currently implemented fu
 
 * amicleanup
 * amicreation
+* autorecovery
 * instancecleanup
 * launchconfigcleanup
 * reservedinstancecheck
