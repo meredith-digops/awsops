@@ -29,6 +29,7 @@ def lambda_handler(event, context):
     if not 'Filters' in event:
         event['Filters'] = [{
             'Name': 'tag-key',
+            'instance-state-name': 'running',
             'Values': ['ops:snapshot']
         }]
 
