@@ -75,8 +75,9 @@ def get_orphaned_images(ec2, filters, retention):
                     if tag['Key'] == 'ops:retention':
                         retention = int(tag['Value'])
 
-            if retention and
-                    creation_date < (datetime.now() - timedelta(days=retention)):
+            if retention and \
+                    creation_date \
+                    < (datetime.now() - timedelta(days=retention)):
                 orphaned.append(image.image_id)
 
     return orphaned
