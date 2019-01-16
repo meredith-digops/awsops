@@ -9,6 +9,7 @@ from botocore.exceptions import ClientError
 DEFAULT_RETENTION_DAYS = None
 """If None, no default retention is applied"""
 
+
 def get_images_in_use(ec2):
     """
     Returns a list of image IDs in use by any EC2 instance or launch
@@ -75,8 +76,9 @@ def get_orphaned_images(ec2, filters, retention):
                     if tag['Key'] == 'ops:retention':
                         retention = int(tag['Value'])
 
-            if retention and
-                    creation_date < (datetime.now() - timedelta(days=retention)):
+            if retention and \
+                    creation_date \
+                    < (datetime.now() - timedelta(days=retention)):
                 orphaned.append(image.image_id)
 
     return orphaned
@@ -86,11 +88,10 @@ def lambda_handler(event, context):
     """
     Cleanup orphaned AMIs and EBS snapshots.
     """
-
-    if not 'DryRun' in event:
+    if 'DryRun' not in event:
         event['DryRun'] = False
 
-    if not 'Filters' in event:
+    if 'Filters' not in event:
         event['Filters'] = [{
             'Name': 'tag-key',
             'Values': [
@@ -100,8 +101,9 @@ def lambda_handler(event, context):
 
     # Set the default retention period if none was provided to the lambda
     # invocation
-    if not 'Retention' in event:
-        event['Retention'] = DEFAULT_RETENTION_DAYS
+    event.update({
+        'Retention': event.get('Retention', DEFAULT_RETENTION_DAYS),
+    })
 
     ec2 = boto3.resource('ec2')
 
